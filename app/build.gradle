@@ -2,3 +2,23 @@ plugins {
     id 'com.android.application' version '8.1.0' apply false
     id 'org.jetbrains.kotlin.android' version '1.8.0' apply false
 }
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.example.printer'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.example.printer"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+}
+
+dependencies {
+    implementation 'com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.3.0'
+}
