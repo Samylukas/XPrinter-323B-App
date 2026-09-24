@@ -48,8 +48,7 @@ class MainActivity : Activity() {
         
         // 🔴🔴 هام جداً: ضع رابط موقعك الحقيقي هنا بدلاً من هذا الرابط 🔴🔴
         // هذا سيعيد الباك إند والكاميرا للعمل فورا
-        webView.loadUrl("https://el-sayeh-store.github.io/YOUR_REPO_NAME/") 
-    }
+webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/")    }
 
     inner class WebAppInterface(private val mContext: Activity) {
         
