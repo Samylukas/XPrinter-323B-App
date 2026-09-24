@@ -36,7 +36,6 @@ class MainActivity : Activity() {
         webView.settings.allowFileAccess = true
         
         webView.webViewClient = WebViewClient()
-        // هذا السطر هو الذي سيشغل الكاميرا فورا بدون أخطاء
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread { request.grant(request.resources) }
@@ -46,9 +45,9 @@ class MainActivity : Activity() {
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidPrinter")
         setContentView(webView)
         
-        // 🔴🔴 هام جداً: ضع رابط موقعك الحقيقي هنا بدلاً من هذا الرابط 🔴🔴
-        // هذا سيعيد الباك إند والكاميرا للعمل فورا
-webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/")    }
+        // الرابط الصحيح والكامل لمكان الملف داخل مستودعك لتجنب خطأ 404
+        webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/app/src/main/assets/index.html") 
+    }
 
     inner class WebAppInterface(private val mContext: Activity) {
         
@@ -60,7 +59,6 @@ webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/")    }
             } catch (e: Exception) { "خطأ بلوتوث" }
         }
 
-        // دالة صفحة الاختبار الجديدة
         @JavascriptInterface
         fun printTestPage(paperWidth: Float) {
             val text = "[C]<b>TEST PAGE - صفحة اختبار</b>\n[C]الطابعة تعمل بنجاح!\n[C]عرض الورق المبرمج: $paperWidth mm\n"
@@ -79,7 +77,6 @@ webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/")    }
             if (showName) formattedText += "[C]<b>$name</b>\n"
             if (showPrice) formattedText += "[C]السعر: $price ج.م\n"
             
-            // الباركود يتم رسمه هنا
             formattedText += "[C]<barcode type='128' width='$barcodeWidth' height='$barcodeHeight'>$barcode</barcode>\n"
             
             executePrintJob(formattedText, paperWidth)
