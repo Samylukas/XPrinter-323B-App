@@ -406,5 +406,49 @@
     function filterStockTable(val) { renderStockTable(val); }
     function logout() { location.reload(); }
 </script>
+<!-- Modal إعدادات الطابعة المتقدمة -->
+<div id="printerSettingsModal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(30,60,114,0.95); display:none; justify-content:center; align-items:center; z-index:9999999;">
+    <div style="background:white; padding:25px; border-radius:12px; text-align:right; width:92%; max-width:400px; max-height:90vh; overflow-y:auto; direction:rtl;">
+        <h3 style="color:#1e3c72; text-align:center; border-bottom:2px solid #3498db; padding-bottom:8px; margin-bottom:15px;">🖨️ إعدادات الطابعة الشاملة</h3>
+        
+        <div style="background:#e8f5e9; padding:10px; border-radius:8px; border:1px solid #a5d6a7; margin-bottom:15px; text-align:center;">
+            <div style="font-size:0.8rem; font-weight:bold; color:#2e7d32;">حالة الاتصال:</div>
+            <div id="btStatusLabel" style="font-weight:900; color:#1e3c72;">جاري الفحص...</div>
+            <div style="display:flex; gap:5px; justify-content:center; margin-top:8px;">
+                <button onclick="checkBluetoothStatus()" style="background:#27ae60; color:#fff; border:none; padding:6px; border-radius:4px; font-weight:bold; cursor:pointer;">تحديث الحالة 🔄</button>
+                <button onclick="testPrinter()" style="background:#e67e22; color:#fff; border:none; padding:6px; border-radius:4px; font-weight:bold; cursor:pointer;">صفحة اختبار 📄</button>
+            </div>
+        </div>
+
+        <h4 style="color:#e74c3c; margin-bottom:5px;">1. إعدادات الفواتير الكبيرة</h4>
+        <div style="display:flex; flex-direction:column; margin-bottom:10px;">
+            <label style="font-size:0.8rem; font-weight:bold;">عرض ورقة الفاتورة (ملم):</label>
+            <input type="number" id="recPaperWidth" value="72" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+        </div>
+
+        <h4 style="color:#8e44ad; margin-bottom:5px; margin-top:15px;">2. إعدادات الملصقات (الليبل)</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div style="display:flex; flex-direction:column;">
+                <label style="font-size:0.8rem; font-weight:bold;">عرض الليبل (ملم):</label>
+                <input type="number" id="lblPaperWidth" value="38" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; flex-direction:column;">
+                <label style="font-size:0.8rem; font-weight:bold;">سُمك الباركود (Width):</label>
+                <input type="number" id="lblBarcodeWidth" value="1" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; flex-direction:column; grid-column:span 2;">
+                <label style="font-size:0.8rem; font-weight:bold;">ارتفاع الباركود (Height):</label>
+                <input type="number" id="lblBarcodeHeight" value="8" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+        </div>
+
+        <div style="margin-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
+            <label style="display:block; font-weight:bold; font-size:0.9rem;"><input type="checkbox" id="lblShowName" checked> طباعة اسم القطعة</label>
+            <label style="display:block; font-weight:bold; font-size:0.9rem; margin-top:5px;"><input type="checkbox" id="lblShowPrice" checked> طباعة السعر</label>
+        </div>
+
+        <button onclick="savePrinterSettings()" style="width:100%; background:#1e3c72; color:#fff; border:none; padding:10px; border-radius:6px; font-weight:bold; margin-top:15px; cursor:pointer;">حفظ وإغلاق 💾</button>
+    </div>
+</div>
 </body>
 </html>
