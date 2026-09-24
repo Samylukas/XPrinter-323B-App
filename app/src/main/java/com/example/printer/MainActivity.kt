@@ -14,6 +14,9 @@ import com.dantsu.escposprinter.EscPosPrinter
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
 
 class MainActivity : Activity() {
+    
+    private lateinit var printBtn: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -27,38 +30,49 @@ class MainActivity : Activity() {
         layout.orientation = LinearLayout.VERTICAL
         layout.setPadding(50, 200, 50, 50)
 
-        val printBtn = Button(this)
-        printBtn.text = "طباعة فاتورة تجريبية"
+        printBtn = Button(this)
+        printBtn.text = "مستعد للطباعة من النظام"
         printBtn.textSize = 24f
         layout.addView(printBtn)
         setContentView(layout)
 
-        val intent = intent
-        val action = intent.action
-        val data: Uri? = intent.data
-
-        if (Intent.ACTION_VIEW == action && data != null) {
-            val type = data.getQueryParameter("type")
-            if (type == "label") {
-                val name = data.getQueryParameter("name") ?: ""
-                val price = data.getQueryParameter("price") ?: ""
-                val barcode = data.getQueryParameter("barcode") ?: ""
-                printLabelFromWeb(name, price, barcode)
-            } else {
-                val printPayload = data.getQueryParameter("text")
-                if (!printPayload.isNullOrEmpty()) {
-                    printReceiptFromWeb(printPayload)
-                }
-            }
-        }
-
         printBtn.setOnClickListener {
             printReceiptFromWeb("فاتورة تجريبية يدوية")
+        }
+
+        // استقبال الطلب لو التطبيق لسة بيفتح لأول مرة
+        handlePrintIntent(intent)
+    }
+
+    // السر هنا: استقبال الطلب لو التطبيق مفتوح بالفعل في الخلفية (لمنع تجاهل الطابعة)
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePrintIntent(intent)
+    }
+
+    private fun handlePrintIntent(intent: Intent?) {
+        if (intent == null || intent.action != Intent.ACTION_VIEW || intent.data == null) return
+        
+        val data: Uri = intent.data!!
+        val type = data.getQueryParameter("type")
+        
+        if (type == "label") {
+            val name = data.getQueryParameter("name") ?: ""
+            val price = data.getQueryParameter("price") ?: ""
+            val barcode = data.getQueryParameter("barcode") ?: ""
+            printBtn.text = "جاري طباعة ملصق الباركود..."
+            printLabelFromWeb(name, price, barcode)
+        } else {
+            val printPayload = data.getQueryParameter("text")
+            if (!printPayload.isNullOrEmpty()) {
+                printBtn.text = "جاري طباعة الفاتورة..."
+                printReceiptFromWeb(printPayload)
+            }
         }
     }
 
     private fun printReceiptFromWeb(payloadText: String) {
-        // تشغيل الطباعة في الخلفية لمنع تجميد الشاشة
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
@@ -70,10 +84,13 @@ class MainActivity : Activity() {
                                         "[C]--------------------------------\n"
                     printer.printFormattedText(formattedText)
                     
-                    // الحل السحري: إغلاق الاتصال بعد الطباعة ليعمل مجدداً
+                    // تحرير الطابعة فوراً عشان تشتغل المرة الجاية بدون ريستارت
                     printer.disconnectPrinter() 
                     
-                    runOnUiThread { Toast.makeText(this, "تم الطباعة بنجاح", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { 
+                        Toast.makeText(this, "تم الطباعة بنجاح", Toast.LENGTH_SHORT).show() 
+                        printBtn.text = "مستعد للطباعة من النظام"
+                    }
                 } else {
                     runOnUiThread { Toast.makeText(this, "يرجى ربط الطابعة بالبلوتوث", Toast.LENGTH_LONG).show() }
                 }
@@ -96,10 +113,13 @@ class MainActivity : Activity() {
                     
                     printer.printFormattedText(formattedText)
                     
-                    // إغلاق الاتصال بعد الملصق
+                    // تحرير الطابعة
                     printer.disconnectPrinter() 
                     
-                    runOnUiThread { Toast.makeText(this, "تم طباعة الباركود", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { 
+                        Toast.makeText(this, "تم طباعة الباركود", Toast.LENGTH_SHORT).show() 
+                        printBtn.text = "مستعد للطباعة من النظام"
+                    }
                 } else {
                     runOnUiThread { Toast.makeText(this, "يرجى ربط الطابعة بالبلوتوث", Toast.LENGTH_LONG).show() }
                 }
