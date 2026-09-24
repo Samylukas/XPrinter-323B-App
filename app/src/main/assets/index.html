@@ -68,9 +68,15 @@
         .scanner-box { display: none; background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 8px; position: relative; text-align: center; }
         .camera-div { width: 100%; max-width: 350px; margin: 0 auto; min-height: 180px; }
         #appPrintArea { display: none; }
-        .floating-scroll-btns { position: fixed; bottom: 20px; left: 15px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
-        .floating-scroll-btns button { background: rgba(30, 60, 114, 0.85); color: white; border: none; width: 42px; height: 42px; border-radius: 50%; font-size: 1.2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; backdrop-filter: blur(4px); transition: 0.3s; display: flex; justify-content: center; align-items: center; }
-        .floating-scroll-btns button:hover { background: #1e3c72; transform: scale(1.1); }
+        ..floating-scroll-btns {
+    position: fixed; bottom: 20px; left: 15px; display: flex; flex-direction: column; gap: 10px; z-index: 999999;
+}
+.floating-scroll-btns button {
+    background: rgba(30, 60, 114, 0.95); color: white; border: 2px solid #fff; width: 45px; height: 45px; 
+    border-radius: 50%; font-size: 1.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4); 
+    cursor: pointer; display: flex; justify-content: center; align-items: center;
+}
+.floating-scroll-btns button:active { transform: scale(0.9); }
         #scrollTopBtn { opacity: 0; visibility: hidden; }
         .page-break-row { page-break-after: always !important; break-after: page !important; }
         .report-title-header { text-align: center; color: #1e3c72; margin-bottom: 15px; font-size: 1.4rem; display: none; border-bottom: 3px solid #f39c12; padding-bottom: 8px; font-weight: 800; }
@@ -277,7 +283,6 @@
 <div id="appPrintArea"></div>
 <div id="hiddenBarcodeTemp" style="display:none; position:absolute; left:-9999px;"><svg id="tempBarcodeSvg"></svg></div>
 <script>
-    window.addEventListener('scroll', () => { const topBtn = document.getElementById('scrollTopBtn'); if (window.scrollY > 300) { topBtn.style.opacity = '1'; topBtn.style.visibility = 'visible'; } else { topBtn.style.opacity = '0'; topBtn.style.visibility = 'hidden'; } });
     function safeStr(val) { return val ? String(val).trim() : ''; }
     Chart.defaults.font.family = "'Cairo', system-ui, -apple-system, sans-serif"; Chart.defaults.color = '#333';
     

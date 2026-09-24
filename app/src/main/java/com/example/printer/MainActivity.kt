@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -20,7 +21,6 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // طلب صلاحيات البلوتوث والكاميرا للهواتف الحديثة
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(
@@ -33,24 +33,25 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.CAMERA), 1)
         }
 
-        // إنشاء متصفح داخلي (WebView) ليعرض الموقع كأنه تطبيق
         val webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = WebViewClient()
-        webView.webChromeClient = WebChromeClient()
         
-        // ربط الموقع بكود الطباعة في الأندرويد باسم "AndroidPrinter"
+        // إعطاء صلاحية الكاميرا مباشرة للويب (لحل مشكلة NotAllowedError)
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                request.grant(request.resources)
+            }
+        }
+        
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidPrinter")
         
         setContentView(webView)
-        
-        // تحميل الموقع الخاص بك من المجلد الداخلي assets
         webView.loadUrl("file:///android_asset/index.html")
     }
 
-    // الكلاس المسؤول عن استقبال الأوامر من الجافا سكريبت في موقعك
     inner class WebAppInterface(private val mContext: Activity) {
         
         @JavascriptInterface
@@ -70,7 +71,6 @@ class MainActivity : Activity() {
             executePrintJob(formattedText)
         }
 
-        // محرك الطباعة في الخلفية (لمنع التهنيج)
         private fun executePrintJob(textToPrint: String) {
             Thread {
                 try {
@@ -79,7 +79,8 @@ class MainActivity : Activity() {
                         val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
                         printer.printFormattedText(textToPrint)
                         
-                        // قطع الاتصال فورا ليكون جاهزا للطباعة التالية
+                        // تأخير بسيط لضمان تفريغ الذاكرة المؤقتة للطابعة قبل قطع الاتصال
+                        Thread.sleep(300)
                         printer.disconnectPrinter() 
                         
                         runOnUiThread { Toast.makeText(mContext, "تم الطباعة بنجاح", Toast.LENGTH_SHORT).show() }
