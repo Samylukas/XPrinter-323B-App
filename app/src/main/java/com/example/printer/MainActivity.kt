@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // 1. طلب الصلاحيات الأساسية (بلوتوث وكاميرا)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(
@@ -33,25 +34,30 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.CAMERA), 1)
         }
 
+        // 2. إعداد المتصفح الداخلي (WebView)
         val webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = WebViewClient()
         
-        // إعطاء صلاحية الكاميرا مباشرة للويب (لحل مشكلة NotAllowedError)
+        // السماح للكاميرا بالعمل داخل المتصفح الداخلي بدون مشاكل (لحل مشكلة مسح الباركود)
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 request.grant(request.resources)
             }
         }
         
+        // 3. ربط أوامر الجافا سكريبت بالأندرويد
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidPrinter")
         
         setContentView(webView)
+        
+        // 4. تحميل ملف الموقع
         webView.loadUrl("file:///android_asset/index.html")
     }
 
+    // الكلاس المسؤول عن استقبال أوامر الطباعة
     inner class WebAppInterface(private val mContext: Activity) {
         
         @JavascriptInterface
@@ -74,22 +80,27 @@ class MainActivity : Activity() {
         private fun executePrintJob(textToPrint: String) {
             Thread {
                 try {
+                    // البحث عن أول جهاز بلوتوث مقترن
                     val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
+                    
                     if (printerConnection != null) {
+                        // الاتصال بالطابعة وإرسال الأمر
                         val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
                         printer.printFormattedText(textToPrint)
                         
-                        // تأخير بسيط لضمان تفريغ الذاكرة المؤقتة للطابعة قبل قطع الاتصال
-                        Thread.sleep(300)
+                        // تأخير بسيط لضمان خروج الورقة بالكامل قبل قطع الاتصال
+                        Thread.sleep(500)
                         printer.disconnectPrinter() 
                         
                         runOnUiThread { Toast.makeText(mContext, "تم الطباعة بنجاح", Toast.LENGTH_SHORT).show() }
                     } else {
-                        runOnUiThread { Toast.makeText(mContext, "يرجى ربط الطابعة بالبلوتوث أولاً", Toast.LENGTH_LONG).show() }
+                        runOnUiThread { Toast.makeText(mContext, "لم يتم العثور على أي طابعة مقترنة!", Toast.LENGTH_LONG).show() }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    runOnUiThread { Toast.makeText(mContext, "خطأ في الطباعة، تأكد من تشغيل الطابعة", Toast.LENGTH_LONG).show() }
+                    // عرض رسالة الخطأ التقنية الحقيقية لمعرفة السبب بدقة
+                    val errorMessage = e.message ?: "خطأ غير معروف"
+                    runOnUiThread { Toast.makeText(mContext, "خطأ تقني: $errorMessage", Toast.LENGTH_LONG).show() }
                 }
             }.start()
         }
