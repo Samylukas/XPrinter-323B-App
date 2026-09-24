@@ -1,6 +1,9 @@
 package com.example.printer
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
@@ -12,7 +15,16 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // تصميم واجهة التطبيق (زر الطباعة) برمجياً
+        // طلب صلاحيات البلوتوث للهواتف الحديثة (أندرويد 12 وما فوق)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN
+                ), 1)
+            }
+        }
+
         val layout = LinearLayout(this)
         layout.orientation = LinearLayout.VERTICAL
         layout.setPadding(50, 200, 50, 50)
@@ -49,7 +61,7 @@ class MainActivity : Activity() {
                 )
                 Toast.makeText(this, "تم أمر الطباعة بنجاح", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "يرجى ربط الطابعة بالبلوتوث أولاً", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "لم يتم العثور على طابعة مقترنة", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
