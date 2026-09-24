@@ -14,23 +14,19 @@
         
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask"> <!-- هذا السطر يمنع تكرار فتح التطبيق واختناق البلوتوث -->
+            
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- إضافة الـ Intent Filter الجديد للرد على الويب -->
             <intent-filter>
-                <!-- الإجراء VIEW مهم ليستجيب للروابط -->
                 <action android:name="android.intent.action.VIEW" />
-                <!-- الفئة BROWSABLE تجعل التطبيق قابلاً للفتح من المتصفح -->
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <!-- إعداد الرابط الخاص بالتطبيق (مثال: elsayeh://print) -->
-                <data
-                    android:scheme="elsayeh"
-                    android:host="print" />
+                <data android:scheme="elsayeh" android:host="print" />
             </intent-filter>
         </activity>
     </application>
