@@ -41,7 +41,7 @@ class MainActivity : Activity() {
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = WebViewClient()
         
-        // السماح للكاميرا بالعمل داخل المتصفح الداخلي بدون مشاكل (لحل مشكلة مسح الباركود)
+        // السماح للكاميرا بالعمل داخل المتصفح الداخلي بدون مشاكل
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 request.grant(request.resources)
@@ -57,7 +57,7 @@ class MainActivity : Activity() {
         webView.loadUrl("file:///android_asset/index.html")
     }
 
-    // الكلاس المسؤول عن استقبال أوامر الطباعة
+    // الكلاس المسؤول عن استقبال أوامر الطباعة من الموقع
     inner class WebAppInterface(private val mContext: Activity) {
         
         @JavascriptInterface
@@ -66,29 +66,34 @@ class MainActivity : Activity() {
                                 "[L]\n" +
                                 "[L]${payloadText.replace("\n", "\n[L]")}\n" +
                                 "[C]--------------------------------\n"
-            executePrintJob(formattedText)
+            
+            // طباعة الفواتير: نفترض عرض البكرة 80 ملم (مساحة الطباعة 72 ملم) و 48 حرف في السطر
+            executePrintJob(formattedText, 72f, 48)
         }
 
         @JavascriptInterface
         fun printLabel(name: String, price: String, barcode: String) {
+            // تصغير الباركود (width='1' و height='8') ليتناسب مع الليبل
             val formattedText = "[C]<b>$name</b>\n" +
                                 "[C]السعر : $price ج.م\n" +
-                                "[C]<barcode type='128' width='2' height='10'>$barcode</barcode>\n"
-            executePrintJob(formattedText)
+                                "[C]<barcode type='128' width='1' height='8'>$barcode</barcode>\n"
+            
+            // طباعة الليبل: مقاس 1.5 إنش يعادل 38 ملم تقريباً، ونضبط عدد الحروف على 24 ليكون الخط واضحاً
+            executePrintJob(formattedText, 38f, 24)
         }
 
-        private fun executePrintJob(textToPrint: String) {
+        // محرك الطباعة الشامل (يستقبل النص، عرض الورقة، وعدد الحروف)
+        private fun executePrintJob(textToPrint: String, paperWidthMM: Float, charsPerLine: Int) {
             Thread {
                 try {
-                    // البحث عن أول جهاز بلوتوث مقترن
                     val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                     
                     if (printerConnection != null) {
-                        // الاتصال بالطابعة وإرسال الأمر
-                        val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
+                        // هنا يتم تحديد حجم الورق بناءً على الأمر (فاتورة أو ليبل)
+                        val printer = EscPosPrinter(printerConnection, 203, paperWidthMM, charsPerLine)
                         printer.printFormattedText(textToPrint)
                         
-                        // تأخير بسيط لضمان خروج الورقة بالكامل قبل قطع الاتصال
+                        // تأخير بسيط لضمان تفريغ ذاكرة الطابعة قبل قطع الاتصال
                         Thread.sleep(500)
                         printer.disconnectPrinter() 
                         
@@ -98,7 +103,6 @@ class MainActivity : Activity() {
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    // عرض رسالة الخطأ التقنية الحقيقية لمعرفة السبب بدقة
                     val errorMessage = e.message ?: "خطأ غير معروف"
                     runOnUiThread { Toast.makeText(mContext, "خطأ تقني: $errorMessage", Toast.LENGTH_LONG).show() }
                 }
