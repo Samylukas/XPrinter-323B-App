@@ -1,4 +1,47 @@
-if (Intent.ACTION_VIEW == action && data != null) {
+package com.example.printer
+
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.Toast
+import com.dantsu.escposprinter.EscPosPrinter
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
+
+class MainActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // طلب صلاحيات البلوتوث للهواتف الحديثة
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN
+                ), 1)
+            }
+        }
+
+        val layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(50, 200, 50, 50)
+
+        val printBtn = Button(this)
+        printBtn.text = "طباعة فاتورة تجريبية"
+        printBtn.textSize = 24f
+        layout.addView(printBtn)
+        setContentView(layout)
+
+        val intent = intent
+        val action = intent.action
+        val data: Uri? = intent.data
+
+        if (Intent.ACTION_VIEW == action && data != null) {
             val type = data.getQueryParameter("type")
             
             // لو الموقع طلب طباعة ليبل باركود
@@ -25,7 +68,6 @@ if (Intent.ACTION_VIEW == action && data != null) {
         }
     }
 
-    // دالة مخصصة لطباعة الفواتير
     private fun printReceiptFromWeb(payloadText: String) {
         try {
             val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
@@ -36,7 +78,7 @@ if (Intent.ACTION_VIEW == action && data != null) {
                                     "[L]${payloadText.replace("\n", "\n[L]")}\n" +
                                     "[C]--------------------------------\n"
                 printer.printFormattedText(formattedText)
-                Toast.makeText(this, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم أمر الطباعة بنجاح", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "يرجى ربط الطابعة بالبلوتوث", Toast.LENGTH_LONG).show()
             }
@@ -46,12 +88,10 @@ if (Intent.ACTION_VIEW == action && data != null) {
         }
     }
 
-    // دالة جديدة مخصصة لطباعة ملصق الباركود (الليبل)
     private fun printLabelFromWeb(name: String, price: String, barcode: String) {
         try {
             val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
             if (printerConnection != null) {
-                // هنا نضبط الطابعة، والسر في تاج الباركود
                 val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
                 val formattedText = "[C]<b>$name</b>\n" +
                                     "[C]السعر : $price ج.م\n" +
