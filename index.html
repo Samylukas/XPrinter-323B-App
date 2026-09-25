@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>El Sayeh Store ⚙️ - مركز السائح لقطع غيار السيارات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; margin: 0; padding: 0; }
+        html, body { width: 100%; overflow-x: hidden; background-color: #f0f4f8; padding: 4px; color: #1e293b; direction: rtl; scroll-behavior: smooth; }
+        
+        /* أزرار التمرير (تم نقلها لأسفل يسار الشاشة) */
+        .floating-scroll-btns {
+            position: fixed; bottom: 20px; left: 15px; display: flex; flex-direction: column-reverse; gap: 10px; z-index: 999999;
+        }
+        .floating-scroll-btns button {
+            background: rgba(30, 60, 114, 0.95); color: white; border: 2px solid #fff; width: 45px; height: 45px; 
+            border-radius: 50%; font-size: 1.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4); 
+            cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.2s;
+        }
+        .floating-scroll-btns button:active { transform: scale(0.9); }
+
+        .splash-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 99999999; transition: opacity 0.8s ease, visibility 0.8s ease; }
+        .app-container { width: 100%; max-width: 100%; margin: 0 auto; background: #fff; padding: 8px; border-radius: 12px; box-shadow: 0 4px 15px rgba(30, 60, 114, 0.08); position: relative; min-height: 98vh; padding-bottom: 30px; }
+        h1 { text-align: center; color: #1e3c72; margin-bottom: 8px; font-size: 1.2rem; font-weight: 800; }
+        .sync-status { text-align: center; font-size: 0.85rem; font-weight: 800; margin-bottom: 6px; padding: 4px; border-radius: 6px; cursor: pointer; transition: 0.2s; background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;}
+        .alerts-bar { background: #fff8e7; border: 1px solid #ffe8b3; color: #b78103; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; font-size: 0.85rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
+        
+        .nav-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 2px solid #3498db; padding-bottom: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .tab-btn { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 6px; font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 0.85rem; flex-shrink: 0; }
+        .tab-btn.active { background: #1e3c72; color: #fff; border-color: #1e3c72; box-shadow: 0 2px 8px rgba(30,60,114,0.3); }
+        .tab-content { display: none; width: 100%; } .tab-content.active { display: block; }
+        .section-title { font-weight: 800; margin-bottom: 8px; color: #1e3c72; border-bottom: 2px solid #3498db; padding-bottom: 4px; font-size: 1.05rem; }
+        
+        .search-box { width: 100%; padding: 10px; font-size: 0.9rem; border: 2px solid #3498db; border-radius: 6px; outline: none; margin-bottom: 6px; box-sizing: border-box; background: #fff; font-weight: 600;}
+        .results-list { max-height: 180px; overflow-y: auto; border: 2px solid #3498db; border-radius: 6px; margin-bottom: 8px; display: none; background: #ffffff; position: relative; z-index: 99999; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .result-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700;}
+        
+        .card { background: #f8fafc; border: 1px solid #94a3b8; padding: 12px; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; width: 100%; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; font-weight: 700; flex-wrap: wrap; gap: 4px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 6px; width: 100%; box-sizing: border-box; }
+        .field-box { display: flex; flex-direction: column; width: 100%; }
+        .field-box label { font-size: 0.8rem; font-weight: 800; margin-bottom: 4px; color: #1e3c72; }
+        .field-box input, .field-box select { width: 100%; padding: 10px; border: 1px solid #94a3b8; border-radius: 6px; text-align: center; font-size: 0.9rem; font-weight: 700; box-sizing: border-box; background: #fff; }
+        
+        .btn { border: none; padding: 10px 12px; border-radius: 6px; font-weight: 800; cursor: pointer; margin-top: 8px; width: 100%; font-size: 0.9rem; display: inline-flex; align-items: center; justify-content: center; gap: 5px; color: white; transition: 0.2s;}
+        .btn-green { background: #27ae60; } .btn-blue { background: #1e3c72; } .btn-red { background: #e74c3c; } .btn-purple { background: #8e44ad; } .btn-orange { background: #e67e22; } .btn-dark { background: #2c3e50; }
+
+        .table-responsive { width: 100%; overflow-x: auto; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 5px rgba(0,0,0,0.05);}
+        table { width: 100%; border-collapse: collapse; background: #fff; table-layout: auto; direction: rtl; }
+        th, td { padding: 10px 6px; border: 1px solid #e2e8f0; text-align: center; font-size: 0.85rem; word-break: break-word; white-space: normal; vertical-align: middle; color: #1e293b !important; font-weight: 700; }
+        th { background: #fcf8e3; color: #1e3c72 !important; border-bottom: 2px solid #3498db; font-weight: 800; white-space: nowrap; }
+
+        .action-btn-group { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px; justify-content: center; min-width: 120px; }
+        .action-btn-group .btn { width: auto; font-size: 0.7rem; padding: 4px 8px; margin: 0; }
+
+        .login-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(30,60,114,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999999; }
+        .login-card { background: white; padding: 25px; border-radius: 12px; text-align: center; width: 92%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+
+        .totals-box { background: #fcf8e3; color: #1e3c72; padding: 15px; border-radius: 8px; margin-top: 10px; border: 2px solid #3498db; }
+        .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; font-size: 0.85rem; text-align: center; }
+        .total-item { background: #ffffff; padding: 8px 4px; border-radius: 6px; border: 1px solid #bfdbfe; color: #1e3c72; font-weight: 800; }
+        .total-item span { display: block; font-weight: 800; font-size: 1.1rem; margin-top: 4px; }
+
+        .scanner-box { display: none; background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 8px; text-align: center; }
+        .camera-div { width: 100%; max-width: 350px; margin: 0 auto; min-height: 180px; }
+        
+        .footer-signature { text-align: center; margin-top: 20px; padding-top: 10px; border-top: 1px solid #cbd5e1; font-size: 0.8rem; color: #64748b; font-weight: 800; }
+        
+        /* Modal إعدادات الطابعة */
+        .settings-toggle-container { display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #cbd5e1; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9rem; font-weight: 700; color: #1e3c72; }
+        .checkbox-group input { width: 18px; height: 18px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<!-- أزرار التمرير (تم التعديل لتكون أسفل يسار الشاشة) -->
+<div class="floating-scroll-btns">
+    <button onclick="window.scrollTo({top:0, behavior:'smooth'})" title="أعلى">⬆️</button>
+    <button onclick="window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'})" title="أسفل">⬇️</button>
+</div>
+
+<div id="splashScreen" class="splash-screen">
+    <h1 style="font-size: 3rem; margin-bottom:0;">⚙️</h1>
+    <h1 style="color:#1e3c72; font-size:1.8rem; margin:0;">El Sayeh Store</h1>
+    <p style="color:#64748b; font-weight:bold;">جاري التحميل...</p>
+</div>
+
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <h2 style="color:#1e3c72; margin-bottom:10px;"><span style="font-size:1.4rem;">⚙️</span> El Sayeh Store</h2>
+        <div class="field-box" style="margin-bottom:10px;"><label>اسم المستخدم:</label><select id="entryUserSelect"><option value="admin">ADMIN</option></select></div>
+        <div class="field-box" style="margin-bottom:15px;"><label>كلمة المرور:</label><input type="password" id="entryPassInput" placeholder="1234"></div>
+        <div style="display:flex; gap:8px;"><button class="btn btn-blue" onclick="validateEntryPassword()">دخول</button></div>
+    </div>
+</div>
+
+<!-- Modal إعدادات الطباعة والبلوتوث -->
+<div id="printerSettingsModal" class="login-overlay" style="display:none;">
+    <div class="login-card" style="max-width: 400px; text-align: right; overflow-y: auto; max-height: 90vh;">
+        <h3 style="color:#1e3c72; text-align:center; border-bottom:2px solid #3498db; padding-bottom:8px; margin-bottom:15px;">🖨️ إعدادات الطابعة والملصقات</h3>
+        
+        <div style="background:#e8f5e9; padding:10px; border-radius:8px; border:1px solid #a5d6a7; margin-bottom:15px; text-align:center;">
+            <div style="font-size:0.8rem; font-weight:bold; color:#2e7d32; margin-bottom:5px;">حالة الاتصال بالبلوتوث:</div>
+            <div id="btStatusLabel" style="font-weight:900; color:#1e3c72;">جاري الفحص...</div>
+            <button class="btn btn-green" style="padding:6px; font-size:0.8rem; margin-top:8px;" onclick="checkBluetoothStatus()">تحديث الحالة 🔄</button>
+        </div>
+
+        <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="field-box">
+                <label title="38 لليبل، 72 للفاتورة الكبيرة">عرض الورقة (ملم):</label>
+                <input type="number" id="lblPaperWidth" value="38">
+            </div>
+            <div class="field-box">
+                <label title="سُمك أعمدة الباركود (1 رفيع، 2 عريض)">سُمك الباركود (Width):</label>
+                <input type="number" id="lblBarcodeWidth" value="1" min="1" max="3">
+            </div>
+            <div class="field-box" style="grid-column: span 2;">
+                <label title="ارتفاع أعمدة الباركود">ارتفاع الباركود (Height):</label>
+                <input type="number" id="lblBarcodeHeight" value="8" min="5" max="20">
+            </div>
+        </div>
+
+        <div style="margin-top:15px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #cbd5e1;">
+            <div style="font-size:0.9rem; font-weight:bold; color:#1e3c72; margin-bottom:8px;">عناصر طباعة الليبل:</div>
+            <label class="checkbox-group"><input type="checkbox" id="lblShowName" checked> طباعة اسم القطعة</label>
+            <label class="checkbox-group"><input type="checkbox" id="lblShowPrice" checked> طباعة السعر</label>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:20px;">
+            <button class="btn btn-purple" onclick="savePrinterSettings()">حفظ وإغلاق 💾</button>
+        </div>
+    </div>
+</div>
+
+<div class="app-container" id="mainContainer" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ddd; padding-bottom:6px; margin-bottom:10px;">
+        <span id="userGreeting" style="font-weight:800; color:#1e3c72; font-size:0.85rem;">👤 المستخدم: -</span>
+        <button class="btn btn-red" style="width:auto; margin:0; padding:6px 10px; font-size:0.8rem;" onclick="logout()">تسجيل الخروج 🚪</button>
+    </div>
+
+    <h1><span class="spinning-gear">⚙️</span> El Sayeh Store</h1>
+    
+    <div class="settings-toggle-container">
+        <div id="syncIndicator" class="sync-status status-online" style="margin:0;">🟢 متصل أونلاين</div>
+        <button class="btn btn-dark" style="width:auto; margin:0; padding:6px 12px; font-size:0.8rem;" onclick="openPrinterSettings()">إعدادات الطابعة 🖨️</button>
+    </div>
+
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="showTab('salesTab', event)">🛒 المبيعات والفواتير</button>
+        <button class="tab-btn manager-only" onclick="showTab('stockTab', event)">📦 تفاصيل المخزون</button>
+        <button class="tab-btn manager-only" onclick="showTab('addStockTab', event)">➕ إضافة أصناف</button>
+        <button class="tab-btn admin-only" onclick="showTab('reportsTab', event)">📊 التقارير والإحصائيات</button>
+    </div>
+
+    <!-- 1. المبيعات POS -->
+    <div id="salesTab" class="tab-content active">
+        <div class="section-title">🛒 إنشاء فاتورة مبيعات</div>
+        <div style="display:flex; gap:6px; margin-bottom:10px;"><button class="btn btn-orange" onclick="prepareNewInvoice()">فاتورة جديدة ➕</button><button class="btn btn-red" onclick="clearCurrentInvoice()">تفريغ 🧹</button></div>
+        <div class="info-row" style="background:#eef7fe; padding:10px; border-radius:6px; border:1px solid #bfdbfe;">
+            <div>رقم الفاتورة: <span id="invNum" style="color: #1e3c72; font-weight: 800;">1001</span></div>
+            <div>التاريخ: <input type="datetime-local" id="invoiceDate" style="padding:2px; font-size:0.8rem;"></div>
+        </div>
+        <div class="card" style="background:#fff8e7;">
+            <div class="form-grid">
+                <div class="field-box"><label>الدفع:</label><select id="paymentTypeSelect"><option value="cash">نقدي</option><option value="credit">آجل</option></select></div>
+                <div class="field-box"><label>خصم (%):</label><input type="number" id="invoiceDiscountPercent" value="0" oninput="renderInvoice()"></div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:6px; margin-top:10px;">
+            <input type="text" id="searchInput" class="search-box" style="margin-bottom:0;" autocomplete="off" placeholder="الباركود أو اسم القطعة..." oninput="searchProduct()">
+            <button class="btn btn-purple" style="width:auto; margin-top:0;" onclick="toggleCameraScanner('sales')">📷 كاميرا</button>
+        </div>
+
+        <div id="salesScannerContainer" class="scanner-box"><div id="salesCameraReader" class="camera-div"></div><button class="btn btn-red" style="margin:6px auto; width:90%; padding:6px;" onclick="stopCameraScanner('sales')">إغلاق ❌</button></div>
+        <div id="searchResults" class="results-list"></div>
+
+        <div id="productCard" class="card" style="display:none; margin-top: 8px;">
+            <h3 id="prodName" style="color: #1e3c72;"></h3>
+            <div class="info-row"><div>المخزون: <span id="stockQty" style="color:#e74c3c;">0</span></div><div>البيع: <span id="sellPriceVal" style="color:#27ae60;">0</span> ج.م</div></div>
+            <div class="form-grid" style="margin-top:8px;">
+                <div class="field-box"><label>الكمية:</label><input type="number" id="sellQty" value="1" min="1" oninput="calculateItemTotal()"></div>
+                <div class="field-box"><label>السعر الفعلي:</label><input type="number" id="actualSellPrice" value="0" oninput="calculateItemTotal()"></div>
+                <div class="field-box"><label>الإجمالي:</label><input type="number" id="itemTotalCalc" value="0" readonly style="background:#e9ecef;"></div>
+            </div>
+            <button class="btn btn-green" onclick="addToInvoice()">إضافة للفاتورة 🛒</button>
+        </div>
+
+        <div class="table-responsive"><table><thead><tr><th>القطعة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th><th>حذف</th></tr></thead><tbody id="invoiceTableBody"><tr><td colspan="5">لم يتم الإضافة</td></tr></tbody></table></div>
+        
+        <div class="totals-box">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>الخصم: <span id="discountValEGP" style="color:#e74c3c;">0.00</span></div>
+                <div>الصافي: <span id="liveTotalEGP" style="font-weight:800; font-size:1.2rem; color:#27ae60;">0.00 ج.م</span></div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top: 15px;">
+            <button class="btn btn-purple" onclick="saveInvoice()">حفظ 💾</button>
+            <button class="btn btn-blue" onclick="saveAndPrintInvoice()">حفظ وطباعة 🖨️</button>
+        </div>
+    </div>
+
+    <!-- 2. تفاصيل المخزون (تطبيق الطابعة) -->
+    <div id="stockTab" class="tab-content manager-only">
+        <div class="section-title">📦 تفاصيل المخزون وطباعة الباركود</div>
+        <input type="text" id="stockFilterInput" class="search-box" placeholder="ابحث باسم القطعة أو الباركود..." oninput="filterStockTable(this.value)">
+        <div class="table-responsive"><table>
+            <thead><tr><th>القطعة</th><th>البيع</th><th>المخزن</th><th>الباركود</th><th>إجراء</th></tr></thead>
+            <tbody id="stockTableBody"></tbody>
+        </table></div>
+    </div>
+
+    <!-- 3. إضافة صنف -->
+    <div id="addStockTab" class="tab-content manager-only">
+        <div class="section-title">➕ إضافة قطعة جديدة</div>
+        <div class="card">
+            <div class="form-grid">
+                <div class="field-box"><label>اسم القطعة:</label><input type="text" id="newProdName"></div>
+                <div class="field-box"><label>التكلفة:</label><input type="number" id="newProdPrice"></div>
+                <div class="field-box"><label>البيع:</label><input type="number" id="newProdSellPrice"></div>
+                <div class="field-box"><label>الكمية المضافة:</label><input type="number" id="newProdQty" value="10"></div>
+                <div class="field-box"><label>الباركود:</label><input type="text" id="newProdBarcode"></div>
+            </div>
+            <button class="btn btn-purple" style="margin-top: 15px;" onclick="addNewProductToSystem()">حفظ الصنف 📦</button>
+        </div>
+    </div>
+
+    <!-- 4. التقارير -->
+    <div id="reportsTab" class="tab-content admin-only">
+        <div class="section-title">📊 التقارير والإحصائيات</div>
+        <div class="card">
+            <div class="form-grid">
+                <div class="field-box"><label>نوع التقرير:</label><select id="reportTypeSelect"><option value="profit_sales">مبيعات</option><option value="inventory">مخزون</option></select></div>
+            </div>
+            <button class="btn btn-blue" style="margin-top: 15px;" onclick="generateReport()">عرض التقارير 🔍</button>
+        </div>
+        <div id="pdfReportArea" style="background:#fff; border-radius:12px; padding:10px; display:none;">
+            <div class="table-responsive"><table id="mainReportTable"><thead></thead><tbody></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- متغيرات داتا النظام ---
+    let products = [{n: "تيل فرامل أمامي", p: 150, sp: 200, q: 50, barcode: "2006325", category: "فرامل"}, {n: "فلتر زيت", p: 50, sp: 75, q: 100, barcode: "2006326", category: "فلاتر"}];
+    let invoiceItems = [];
+    let savedInvoices = [];
+    let activeInvoiceId = 1001;
+    let selectedProd = null;
+
+    // --- إعدادات الطابعة المحلية (تحفظ في المتصفح) ---
+    let printerSettings = {
+        paperWidth: 38,
+        barcodeWidth: 1,
+        barcodeHeight: 8,
+        showName: true,
+        showPrice: true
+    };
+
+    // تحميل إعدادات الطباعة عند بدء التشغيل
+    function loadPrinterSettings() {
+        const saved = localStorage.getItem('printerSettingsStore');
+        if(saved) {
+            printerSettings = JSON.parse(saved);
+            document.getElementById('lblPaperWidth').value = printerSettings.paperWidth;
+            document.getElementById('lblBarcodeWidth').value = printerSettings.barcodeWidth;
+            document.getElementById('lblBarcodeHeight').value = printerSettings.barcodeHeight;
+            document.getElementById('lblShowName').checked = printerSettings.showName;
+            document.getElementById('lblShowPrice').checked = printerSettings.showPrice;
+        }
+    }
+
+    function savePrinterSettings() {
+        printerSettings = {
+            paperWidth: parseFloat(document.getElementById('lblPaperWidth').value) || 38,
+            barcodeWidth: parseInt(document.getElementById('lblBarcodeWidth').value) || 1,
+            barcodeHeight: parseInt(document.getElementById('lblBarcodeHeight').value) || 8,
+            showName: document.getElementById('lblShowName').checked,
+            showPrice: document.getElementById('lblShowPrice').checked
+        };
+        localStorage.setItem('printerSettingsStore', JSON.stringify(printerSettings));
+        document.getElementById('printerSettingsModal').style.display = 'none';
+    }
+
+    function openPrinterSettings() {
+        document.getElementById('printerSettingsModal').style.display = 'flex';
+        checkBluetoothStatus();
+    }
+
+    function checkBluetoothStatus() {
+        const lbl = document.getElementById('btStatusLabel');
+        lbl.textContent = "جاري الفحص...";
+        if(window.AndroidPrinter && typeof window.AndroidPrinter.getPairedPrinters === 'function') {
+            setTimeout(() => {
+                lbl.textContent = window.AndroidPrinter.getPairedPrinters();
+            }, 500);
+        } else {
+            lbl.textContent = "متصفح الويب (غير متصل بالتطبيق)";
+        }
+    }
+
+    // --- منطق النظام ---
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => { document.getElementById('splashScreen').style.opacity = '0'; setTimeout(()=>document.getElementById('splashScreen').style.display='none', 800); }, 1000);
+        loadPrinterSettings();
+    });
+
+    function validateEntryPassword() {
+        const p = document.getElementById('entryPassInput').value;
+        if(p === '852' || p === '1234') { // باسورد تجريبي
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('mainContainer').style.display = 'block';
+            document.getElementById('userGreeting').textContent = "👤 المستخدم: ADMIN";
+            prepareNewInvoice(); renderStockTable();
+        } else alert('كلمة مرور خاطئة');
+    }
+
+    function showTab(tabId, evt) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if (evt) evt.target.classList.add('active');
+        if(tabId === 'stockTab') renderStockTable();
+    }
+
+    // --- منطق المبيعات ---
+    function prepareNewInvoice() { invoiceItems = []; document.getElementById('invNum').textContent = ++activeInvoiceId; renderInvoice(); }
+    function searchProduct() {
+        const query = document.getElementById('searchInput').value.trim(); const list = document.getElementById('searchResults');
+        if (!query) { list.style.display = 'none'; return; }
+        const matched = products.filter(p => p.n.includes(query) || p.barcode.includes(query));
+        if (matched.length > 0) { list.innerHTML = matched.map((i, idx) => `<div class="result-item" onclick="pickProduct('${i.n}')"><span>${i.n}</span><span>(${i.q})</span></div>`).join(''); list.style.display = 'block'; } else list.style.display = 'none';
+    }
+    function pickProduct(name) {
+        selectedProd = products.find(p => p.n === name);
+        if(!selectedProd) return;
+        document.getElementById('searchResults').style.display = 'none'; document.getElementById('searchInput').value = selectedProd.n;
+        document.getElementById('prodName').textContent = selectedProd.n; document.getElementById('stockQty').textContent = selectedProd.q; document.getElementById('sellPriceVal').textContent = selectedProd.sp; document.getElementById('actualSellPrice').value = selectedProd.sp;
+        calculateItemTotal(); document.getElementById('productCard').style.display = 'block';
+    }
+    function calculateItemTotal() { document.getElementById('itemTotalCalc').value = (document.getElementById('sellQty').value * document.getElementById('actualSellPrice').value).toFixed(2); }
+    function addToInvoice() {
+        if(!selectedProd) return;
+        const q = parseInt(document.getElementById('sellQty').value); const p = parseFloat(document.getElementById('actualSellPrice').value);
+        invoiceItems.push({name: selectedProd.n, qty: q, sellTotal: p * q});
+        document.getElementById('productCard').style.display = 'none'; document.getElementById('searchInput').value = ''; renderInvoice();
+    }
+    function renderInvoice() {
+        const tbody = document.getElementById('invoiceTableBody'); let total = 0;
+        if(invoiceItems.length === 0) tbody.innerHTML = '<tr><td colspan="5">لم يتم الإضافة</td></tr>';
+        else tbody.innerHTML = invoiceItems.map((i, idx) => { total += i.sellTotal; return `<tr><td>${i.name}</td><td>${i.qty}</td><td>${(i.sellTotal/i.qty).toFixed(2)}</td><td>${i.sellTotal.toFixed(2)}</td><td><button class="btn btn-red" onclick="invoiceItems.splice(${idx},1);renderInvoice()">حذف</button></td></tr>`; }).join('');
+        const d = (total * (document.getElementById('invoiceDiscountPercent').value || 0)) / 100;
+        document.getElementById('discountValEGP').textContent = d.toFixed(2); document.getElementById('liveTotalEGP').textContent = (total - d).toFixed(2) + ' ج.م';
+    }
+    function saveInvoice() { if(invoiceItems.length===0)return alert("الفاتورة فارغة"); alert("تم الحفظ محلياً (تجريبي)"); prepareNewInvoice(); }
+    
+    // --- دوال الطباعة عبر التطبيق الداخلي (الأساس) ---
+    function saveAndPrintInvoice() {
+        if(invoiceItems.length===0) return alert("الفاتورة فارغة");
+        let textPayload = `فاتورة رقم: #${activeInvoiceId}\n------------------\n`;
+        let tot = 0;
+        invoiceItems.forEach(i => { textPayload += `${i.name} (${i.qty}) = ${(i.sellTotal).toFixed(2)} ج.م\n`; tot += i.sellTotal; });
+        textPayload += `------------------\nالإجمالي: ${tot.toFixed(2)} ج.م`;
+        
+        if (window.AndroidPrinter) {
+            window.AndroidPrinter.printReceipt(textPayload);
+        } else {
+            alert("التطبيق غير متصل بالطابعة\n\nنص الفاتورة:\n" + textPayload);
+        }
+        prepareNewInvoice();
+    }
+
+    function printBarcodeLabel(prodName) {
+        const prod = products.find(p => p.n === prodName);
+        if (!prod || !prod.barcode) return alert("هذا المنتج لا يملك باركود!");
+        
+        if (window.AndroidPrinter) {
+            // نمرر البيانات والإعدادات الديناميكية لكود الأندرويد
+            window.AndroidPrinter.printCustomLabel(
+                prod.n, 
+                prod.sp.toString(), 
+                prod.barcode,
+                printerSettings.paperWidth,
+                printerSettings.barcodeWidth,
+                printerSettings.barcodeHeight,
+                printerSettings.showName,
+                printerSettings.showPrice
+            );
+        } else {
+            alert("يرجى فتح النظام من التطبيق لطباعة الباركود (" + prod.barcode + ")");
+        }
+    }
+
+    // --- منطق المخزون ---
+    function renderStockTable(filter = '') {
+        const tbody = document.getElementById('stockTableBody');
+        const list = products.filter(p => p.n.includes(filter) || p.barcode.includes(filter));
+        tbody.innerHTML = list.map(i => `<tr><td style="font-weight:bold;">${i.n}</td><td style="color:#27ae60; font-weight:bold;">${i.sp}</td><td>${i.q}</td><td>${i.barcode}</td><td><button class="btn btn-blue" style="padding:4px; font-size:0.75rem;" onclick="printBarcodeLabel('${i.n}')">طباعة 🏷️</button></td></tr>`).join('');
+    }
+    function filterStockTable(val) { renderStockTable(val); }
+    function logout() { location.reload(); }
+</script>
+<!-- Modal إعدادات الطابعة المتقدمة -->
+<div id="printerSettingsModal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(30,60,114,0.95); display:none; justify-content:center; align-items:center; z-index:9999999;">
+    <div style="background:white; padding:25px; border-radius:12px; text-align:right; width:92%; max-width:400px; max-height:90vh; overflow-y:auto; direction:rtl;">
+        <h3 style="color:#1e3c72; text-align:center; border-bottom:2px solid #3498db; padding-bottom:8px; margin-bottom:15px;">🖨️ إعدادات الطابعة الشاملة</h3>
+        
+        <div style="background:#e8f5e9; padding:10px; border-radius:8px; border:1px solid #a5d6a7; margin-bottom:15px; text-align:center;">
+            <div style="font-size:0.8rem; font-weight:bold; color:#2e7d32;">حالة الاتصال:</div>
+            <div id="btStatusLabel" style="font-weight:900; color:#1e3c72;">جاري الفحص...</div>
+            <div style="display:flex; gap:5px; justify-content:center; margin-top:8px;">
+                <button onclick="checkBluetoothStatus()" style="background:#27ae60; color:#fff; border:none; padding:6px; border-radius:4px; font-weight:bold; cursor:pointer;">تحديث الحالة 🔄</button>
+                <button onclick="testPrinter()" style="background:#e67e22; color:#fff; border:none; padding:6px; border-radius:4px; font-weight:bold; cursor:pointer;">صفحة اختبار 📄</button>
+            </div>
+        </div>
+
+        <h4 style="color:#e74c3c; margin-bottom:5px;">1. إعدادات الفواتير الكبيرة</h4>
+        <div style="display:flex; flex-direction:column; margin-bottom:10px;">
+            <label style="font-size:0.8rem; font-weight:bold;">عرض ورقة الفاتورة (ملم):</label>
+            <input type="number" id="recPaperWidth" value="72" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+        </div>
+
+        <h4 style="color:#8e44ad; margin-bottom:5px; margin-top:15px;">2. إعدادات الملصقات (الليبل)</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div style="display:flex; flex-direction:column;">
+                <label style="font-size:0.8rem; font-weight:bold;">عرض الليبل (ملم):</label>
+                <input type="number" id="lblPaperWidth" value="38" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; flex-direction:column;">
+                <label style="font-size:0.8rem; font-weight:bold;">سُمك الباركود (Width):</label>
+                <input type="number" id="lblBarcodeWidth" value="1" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; flex-direction:column; grid-column:span 2;">
+                <label style="font-size:0.8rem; font-weight:bold;">ارتفاع الباركود (Height):</label>
+                <input type="number" id="lblBarcodeHeight" value="8" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+        </div>
+
+        <div style="margin-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
+            <label style="display:block; font-weight:bold; font-size:0.9rem;"><input type="checkbox" id="lblShowName" checked> طباعة اسم القطعة</label>
+            <label style="display:block; font-weight:bold; font-size:0.9rem; margin-top:5px;"><input type="checkbox" id="lblShowPrice" checked> طباعة السعر</label>
+        </div>
+
+        <button onclick="savePrinterSettings()" style="width:100%; background:#1e3c72; color:#fff; border:none; padding:10px; border-radius:6px; font-weight:bold; margin-top:15px; cursor:pointer;">حفظ وإغلاق 💾</button>
+    </div>
+</div>
+</body>
+</html>
