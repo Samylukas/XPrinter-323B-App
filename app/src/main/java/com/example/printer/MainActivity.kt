@@ -46,7 +46,7 @@ class MainActivity : Activity() {
         setContentView(webView)
         
         // الرابط الصحيح والكامل لمكان الملف داخل مستودعك لتجنب خطأ 404
-        webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/app/src/main/assets/index.html") 
+webView.loadUrl("https://samylukas.github.io/XPrinter-323B-App/")
     }
 
     inner class WebAppInterface(private val mContext: Activity) {
