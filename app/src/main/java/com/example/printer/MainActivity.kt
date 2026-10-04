@@ -72,14 +72,14 @@ class MainActivity : Activity() {
         }
 
         val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
-        val receiptInput = EditText(this).apply { hint = "اكتب الفاتورة..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
+        val receiptInput = EditText(this).apply { hint = "اكتب الفاتورة (انجليزي/ارقام)..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
             setBackgroundColor(Color.parseColor("#3498db"))
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                printReceiptDirect(if (txt.isNotEmpty()) txt else "TEST RECEIPT")
+                printReceiptDirect(if (txt.isNotEmpty()) txt else "TEST 123")
             }
         }
 
@@ -112,7 +112,7 @@ class MainActivity : Activity() {
             val barcode = data.getQueryParameter("barcode") ?: "0000"
             printLabelTSPL(barcode)
         } else {
-            val text = data.getQueryParameter("text") ?: "TEST"
+            val text = data.getQueryParameter("text") ?: "TEST 123"
             printReceiptDirect(text)
         }
     }
@@ -124,8 +124,6 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     Thread.sleep(500) 
-                    
-                    // استخدام Raw String لعدم حدوث خطأ Illegal escape
                     val command = """
                         SIZE 38 mm,25 mm
                         GAP 2 mm,0 mm
@@ -161,18 +159,22 @@ class MainActivity : Activity() {
                     val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
                     val socket = device.createRfcommSocketToServiceRecord(uuid)
                     socket.connect()
-                    
                     val out = socket.outputStream
                     
-                    // أمر تهيئة الطابعة لوضع الفواتير
+                    // 1. أمر تهيئة الطابعة (يمسح أي أخطاء سابقة)
                     out.write(byteArrayOf(0x1B, 0x40))
                     
-                    // النص
-                    val text = "=== EL SAYEH STORE ===\n\n$payloadText\n\n\n\n\n"
-                    out.write(text.toByteArray(Charsets.UTF_8))
+                    // 2. إرسال النص مع نهايات الأسطر الصحيحة للطابعة
+                    val text = "=== EL SAYEH STORE ===\r\n$payloadText\r\n"
+                    out.write(text.toByteArray(Charsets.US_ASCII))
+                    
+                    // 3. الأمر السحري: اطبــــــع الحبر ومشي الورق 5 سطور (ESC d 5)
+                    out.write(byteArrayOf(0x1B, 0x64, 0x05))
                     
                     out.flush()
-                    Thread.sleep(1500) 
+                    
+                    // 4. ننتظر 2.5 ثانية (وقت كافي جداً للمكنة عشان تحرق الحبر على الورق قبل ما نقطع الاتصال)
+                    Thread.sleep(2500) 
                     socket.close()
                     
                     runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة بنجاح", Toast.LENGTH_SHORT).show() }
