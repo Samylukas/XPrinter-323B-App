@@ -124,9 +124,6 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     
-                    // إعطاء فرصة للطابعة للاستعداد بعد الاتصال
-                    Thread.sleep(500) 
-                    
                     val tsplCommand = "SIZE 38 mm,25 mm\r\n" +
                                       "GAP 2 mm,0 mm\r\n" +
                                       "DIRECTION 1\r\n" +
@@ -135,10 +132,11 @@ class MainActivity : Activity() {
                                       "TEXT 20,140,\"3\",0,1,1,\"$barcode\"\r\n" +
                                       "PRINT 1,1\r\n"
 
+                    // السر كله هنا: write بتجهز البيانات، و send بتدفعها فعلياً عبر البلوتوث للطابعة!
                     printerConnection.write(tsplCommand.toByteArray())
+                    printerConnection.send() 
                     
-                    // السر هنا: الانتظار 3 ثواني كاملة لضمان تفريغ البلوتوث قبل القطع
-                    Thread.sleep(3000)
+                    Thread.sleep(1000)
                     printerConnection.disconnect()
                     
                     runOnUiThread { 
@@ -159,10 +157,11 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
                     val formattedText = "[C]**TEST RECEIPT**\n[L]\n[L]$payloadText\n[C]----------------\n"
+                    
+                    // دالة printFormattedText بداخلها أمر send تلقائي
                     printer.printFormattedText(formattedText)
                     
-                    // الانتظار 3 ثواني كاملة
-                    Thread.sleep(3000)
+                    Thread.sleep(1000)
                     printer.disconnectPrinter() 
                     
                     runOnUiThread { 
