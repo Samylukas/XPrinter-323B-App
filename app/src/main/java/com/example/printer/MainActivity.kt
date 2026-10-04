@@ -53,7 +53,7 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 40)
         }
 
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
+        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
         val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
             text = "طباعة ملصق واحد 🏷️"
@@ -65,14 +65,14 @@ class MainActivity : Activity() {
             }
         }
 
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
+        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
         val receiptInput = EditText(this).apply { hint = "اختبار الفاتورة..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
             setBackgroundColor(Color.parseColor("#3498db"))
             setTextColor(Color.WHITE)
             setOnClickListener {
-                printReceiptESC()
+                printReceiptTSPL()
             }
         }
 
@@ -105,10 +105,11 @@ class MainActivity : Activity() {
             val barcode = data.getQueryParameter("barcode") ?: "0000"
             printLabelTSPL(barcode)
         } else {
-            printReceiptESC()
+            printReceiptTSPL()
         }
     }
 
+    // محرك الملصقات (يعمل بشكل ممتاز ومتوسط)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -137,7 +138,8 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun printReceiptESC() {
+    // الفكرة العبقرية: طباعة الفاتورة بلغة الملصقات لمنع الطابعة من العناد!
+    private fun printReceiptTSPL() {
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
@@ -145,13 +147,16 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(500)
                     
-                    printerConnection.write(byteArrayOf(0x1B, 0x40))
-                    
-                    val text = "SUCCESS! RECEIPT MODE IS WORKING.\r\n" +
-                               "TESTING HARDWARE RESPONSE.\r\n" +
-                               "-----------------------\r\n\r\n\r\n\r\n\r\n"
+                    // إخبار الطابعة: المقاس 72 ملم، والورق "متصل" بدون فراغات (GAP 0,0)
+                    val tsplCommand = "SIZE 72 mm,80 mm\r\n" +
+                                      "GAP 0 mm,0 mm\r\n" +
+                                      "DIRECTION 1\r\n" +
+                                      "CLS\r\n" +
+                                      "TEXT 40,50,\"3\",0,1,1,\"=== EL SAYEH STORE ===\"\r\n" +
+                                      "TEXT 40,120,\"3\",0,1,1,\"SUCCESS! RECEIPT IS WORKING!\"\r\n" +
+                                      "PRINT 1,1\r\n"
                                
-                    printerConnection.write(text.toByteArray(Charsets.US_ASCII))
+                    printerConnection.write(tsplCommand.toByteArray())
                     printerConnection.send()
                     
                     Thread.sleep(3000)
