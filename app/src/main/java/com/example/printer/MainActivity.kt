@@ -15,7 +15,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import com.dantsu.escposprinter.EscPosPrinter
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
 
 class MainActivity : Activity() {
@@ -116,7 +115,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // تم تعديل إحداثيات X (من 20 إلى 60 و 100) لتوسيط الباركود والنص
+    // محرك الملصقات (يعمل بشكل ممتاز ومتوسط)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -146,20 +145,29 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // تم استرجاع المكتبة الذكية لطباعة الفواتير لضمان دعم اللغة العربية والخطوط العريضة
+    // محرك الفواتير المباشر (Raw ESC)
     private fun printReceiptESC(payloadText: String) {
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                 if (printerConnection != null) {
+                    printerConnection.connect()
+                    Thread.sleep(500)
                     
-                    val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
-                    val formattedText = "[C]**El Sayeh Store**\n[C]----------------\n[L]\n[L]$payloadText\n[L]\n[C]----------------\n"
+                    // 1. تهيئة الطابعة (ESC @)
+                    printerConnection.write(byteArrayOf(0x1B, 0x40))
                     
-                    printer.printFormattedText(formattedText)
+                    // 2. النص المطلوب
+                    val text = "=== EL SAYEH STORE ===\n\nTEST RECEIPT\n$payloadText\n\n\n\n\n"
+                    
+                    // إرسال النص مباشرة (استخدمنا UTF-8 كبداية لضمان ظهور الحبر)
+                    printerConnection.write(text.toByteArray(Charsets.UTF_8))
+                    
+                    // 3. دفع الأوامر عبر البلوتوث
+                    printerConnection.send()
                     
                     Thread.sleep(2000)
-                    printer.disconnectPrinter() 
+                    printerConnection.disconnect() 
                     
                     runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة", Toast.LENGTH_SHORT).show() }
                 }
