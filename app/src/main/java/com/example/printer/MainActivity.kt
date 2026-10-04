@@ -61,7 +61,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code) else Toast.makeText(context, "اكتب رقم الباركود", Toast.LENGTH_SHORT).show()
+                if (code.isNotEmpty()) printLabelTSPL(code) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -73,7 +73,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                if (txt.isNotEmpty()) printReceiptESC(txt) else Toast.makeText(context, "اكتب نص الفاتورة", Toast.LENGTH_SHORT).show()
+                if (txt.isNotEmpty()) printReceiptESC(txt) else Toast.makeText(context, "اكتب النص", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -105,17 +105,16 @@ class MainActivity : Activity() {
         
         if (type == "label") {
             val barcode = data.getQueryParameter("barcode") ?: "0000"
-            statusText.text = "مستقبل أمر: طباعة ملصق $barcode"
             printLabelTSPL(barcode)
         } else {
             val printPayload = data.getQueryParameter("text")
             if (!printPayload.isNullOrEmpty()) {
-                statusText.text = "مستقبل أمر: طباعة فاتورة"
                 printReceiptESC(printPayload)
             }
         }
     }
 
+    // محرك الملصقات (الذي نجح ويعمل بشكل ممتاز)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -134,20 +133,18 @@ class MainActivity : Activity() {
 
                     printerConnection.write(tsplCommand.toByteArray())
                     printerConnection.send() 
-                    
                     Thread.sleep(2000)
                     printerConnection.disconnect()
                     
-                    runOnUiThread { Toast.makeText(this, "تم طباعة الملصق", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this, "تم أمر الملصق", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread { Toast.makeText(this, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
 
-    // تم التحديث: محرك طباعة فواتير خاااام (بدون مكتبة) لضمان الاستجابة
+    // محرك الفواتير مبسط لتجنب أي تعارض
     private fun printReceiptESC(payloadText: String) {
         Thread {
             try {
@@ -156,27 +153,23 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(500)
                     
-                    // 1. أمر تهيئة الطابعة (ESC @)
+                    // 1. تهيئة الطابعة (ESC @)
                     printerConnection.write(byteArrayOf(0x1B, 0x40))
                     
-                    // 2. النص المطلوب طباعته (مع إضافة مسافات فارغة في النهاية لتمرير الورق)
-                    val text = "---- El Sayeh Store ----\n\n$payloadText\n\n\n\n\n"
-                    printerConnection.write(text.toByteArray())
+                    // 2. النص (مكتوب بالانجليزية لضمان عدم وجود مشاكل في ترميز الحروف كخطوة أولى)
+                    val text = "=== EL SAYEH STORE ===\n\nTEST RECEIPT\n$payloadText\n\n\n\n\n"
+                    printerConnection.write(text.toByteArray(Charsets.US_ASCII))
                     
-                    // 3. أمر قص الورقة 
-                    printerConnection.write(byteArrayOf(0x1D, 0x56, 0x41, 0x00))
-                    
-                    // 4. الدفع عبر البلوتوث
+                    // 3. دفع الأوامر
                     printerConnection.send()
                     
                     Thread.sleep(2000)
                     printerConnection.disconnect() 
                     
-                    runOnUiThread { Toast.makeText(this, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread { Toast.makeText(this, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
