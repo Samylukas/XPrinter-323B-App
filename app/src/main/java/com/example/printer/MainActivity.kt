@@ -53,7 +53,7 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 40)
         }
 
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (تأكد أن الطابعة EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
+        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
         val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
             text = "طباعة ملصق واحد 🏷️"
@@ -65,15 +65,14 @@ class MainActivity : Activity() {
             }
         }
 
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (تأكد أن الطابعة ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
-        val receiptInput = EditText(this).apply { hint = "اكتب نص الفاتورة (عربي/انجليزي)..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
+        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
+        val receiptInput = EditText(this).apply { hint = "اختبار الفاتورة..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
             setBackgroundColor(Color.parseColor("#3498db"))
             setTextColor(Color.WHITE)
             setOnClickListener {
-                val txt = receiptInput.text.toString()
-                if (txt.isNotEmpty()) printReceiptESC(txt) else Toast.makeText(context, "اكتب النص", Toast.LENGTH_SHORT).show()
+                printReceiptESC()
             }
         }
 
@@ -88,7 +87,6 @@ class MainActivity : Activity() {
         
         scrollView.addView(layout)
         setContentView(scrollView)
-
         handlePrintIntent(intent)
     }
 
@@ -96,7 +94,6 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handlePrintIntent(intent)
-        setIntent(Intent())
     }
 
     private fun handlePrintIntent(intent: Intent?) {
@@ -108,14 +105,10 @@ class MainActivity : Activity() {
             val barcode = data.getQueryParameter("barcode") ?: "0000"
             printLabelTSPL(barcode)
         } else {
-            val printPayload = data.getQueryParameter("text")
-            if (!printPayload.isNullOrEmpty()) {
-                printReceiptESC(printPayload)
-            }
+            printReceiptESC()
         }
     }
 
-    // محرك الملصقات (يعمل بشكل ممتاز ومتوسط)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -123,20 +116,11 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     Thread.sleep(500) 
-                    
-                    val tsplCommand = "SIZE 38 mm,25 mm\r\n" +
-                                      "GAP 2 mm,0 mm\r\n" +
-                                      "DIRECTION 1\r\n" +
-                                      "CLS\r\n" +
-                                      "BARCODE 60,40,\"128\",80,1,0,2,2,\"$barcode\"\r\n" +
-                                      "TEXT 100,140,\"3\",0,1,1,\"$barcode\"\r\n" +
-                                      "PRINT 1,1\r\n"
-
+                    val tsplCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\nBARCODE 60,40,\"128\",80,1,0,2,2,\"\(barcode\"\r\nTEXT 100,140,\"3\",0,1,1,\"\)barcode\"\r\nPRINT 1,1\r\n"
                     printerConnection.write(tsplCommand.toByteArray())
                     printerConnection.send() 
                     Thread.sleep(2000)
                     printerConnection.disconnect()
-                    
                     runOnUiThread { Toast.makeText(this, "تم أمر الملصق", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
@@ -145,8 +129,8 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // محرك الفواتير المباشر (Raw ESC)
-    private fun printReceiptESC(payloadText: String) {
+    // دالة الفواتير الخام: إنجليزي فقط لإثبات استجابة الطابعة الميكانيكية
+    private fun printReceiptESC() {
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
@@ -154,19 +138,17 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(500)
                     
-                    // 1. تهيئة الطابعة (ESC @)
+                    // 1. أمر تهيئة الطابعة (ESC @)
                     printerConnection.write(byteArrayOf(0x1B, 0x40))
                     
-                    // 2. النص المطلوب
-                    val text = "=== EL SAYEH STORE ===\n\nTEST RECEIPT\n$payloadText\n\n\n\n\n"
+                    // 2. إرسال نص إنجليزي بحت (US_ASCII) لتجنب انهيار الطابعة بسبب الترميز
+                    val text = "SUCCESS! RECEIPT MODE IS WORKING.\r\nTESTING HARDWARE RESPONSE.\r\n-----------------------\r\n\r\n\r\n\r\n\r\n"
+                    printerConnection.write(text.toByteArray(Charsets.US_ASCII))
                     
-                    // إرسال النص مباشرة (استخدمنا UTF-8 كبداية لضمان ظهور الحبر)
-                    printerConnection.write(text.toByteArray(Charsets.UTF_8))
-                    
-                    // 3. دفع الأوامر عبر البلوتوث
+                    // 3. الدفع الفعلي للأوامر
                     printerConnection.send()
                     
-                    Thread.sleep(2000)
+                    Thread.sleep(3000)
                     printerConnection.disconnect() 
                     
                     runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة", Toast.LENGTH_SHORT).show() }
