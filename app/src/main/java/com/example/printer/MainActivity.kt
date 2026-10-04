@@ -15,7 +15,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import com.dantsu.escposprinter.EscPosPrinter
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
 
 class MainActivity : Activity() {
@@ -54,7 +53,7 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 40)
         }
 
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (يجب ضبط الطابعة على EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
+        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (تأكد أن الطابعة EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
         val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
             text = "طباعة ملصق واحد 🏷️"
@@ -66,7 +65,7 @@ class MainActivity : Activity() {
             }
         }
 
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (يجب ضبط الطابعة على ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
+        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (تأكد أن الطابعة ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
         val receiptInput = EditText(this).apply { hint = "اكتب نص الفاتورة هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
@@ -123,6 +122,7 @@ class MainActivity : Activity() {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                 if (printerConnection != null) {
                     printerConnection.connect()
+                    Thread.sleep(500) 
                     
                     val tsplCommand = "SIZE 38 mm,25 mm\r\n" +
                                       "GAP 2 mm,0 mm\r\n" +
@@ -132,16 +132,13 @@ class MainActivity : Activity() {
                                       "TEXT 20,140,\"3\",0,1,1,\"$barcode\"\r\n" +
                                       "PRINT 1,1\r\n"
 
-                    // السر كله هنا: write بتجهز البيانات، و send بتدفعها فعلياً عبر البلوتوث للطابعة!
                     printerConnection.write(tsplCommand.toByteArray())
                     printerConnection.send() 
                     
-                    Thread.sleep(1000)
+                    Thread.sleep(2000)
                     printerConnection.disconnect()
                     
-                    runOnUiThread { 
-                        Toast.makeText(this, "تم إرسال الملصق بنجاح", Toast.LENGTH_SHORT).show()
-                    }
+                    runOnUiThread { Toast.makeText(this, "تم طباعة الملصق", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -150,23 +147,32 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    // تم التحديث: محرك طباعة فواتير خاااام (بدون مكتبة) لضمان الاستجابة
     private fun printReceiptESC(payloadText: String) {
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                 if (printerConnection != null) {
-                    val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
-                    val formattedText = "[C]**TEST RECEIPT**\n[L]\n[L]$payloadText\n[C]----------------\n"
+                    printerConnection.connect()
+                    Thread.sleep(500)
                     
-                    // دالة printFormattedText بداخلها أمر send تلقائي
-                    printer.printFormattedText(formattedText)
+                    // 1. أمر تهيئة الطابعة (ESC @)
+                    printerConnection.write(byteArrayOf(0x1B, 0x40))
                     
-                    Thread.sleep(1000)
-                    printer.disconnectPrinter() 
+                    // 2. النص المطلوب طباعته (مع إضافة مسافات فارغة في النهاية لتمرير الورق)
+                    val text = "---- El Sayeh Store ----\n\n$payloadText\n\n\n\n\n"
+                    printerConnection.write(text.toByteArray())
                     
-                    runOnUiThread { 
-                        Toast.makeText(this, "تم إرسال الفاتورة", Toast.LENGTH_SHORT).show() 
-                    }
+                    // 3. أمر قص الورقة 
+                    printerConnection.write(byteArrayOf(0x1D, 0x56, 0x41, 0x00))
+                    
+                    // 4. الدفع عبر البلوتوث
+                    printerConnection.send()
+                    
+                    Thread.sleep(2000)
+                    printerConnection.disconnect() 
+                    
+                    runOnUiThread { Toast.makeText(this, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
