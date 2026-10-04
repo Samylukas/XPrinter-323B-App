@@ -1,7 +1,10 @@
 package com.example.printer
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
@@ -114,7 +117,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // محرك الملصقات (سبناه زي ما هو لأنه أثبت كفاءته واشتغل معاك بنجاح)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -135,7 +137,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // الطريقة المباشرة (Native) للفواتير زي برنامج 4print بدون تدخل أي مكتبات
+    @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String) {
         Thread {
             try {
@@ -144,22 +146,21 @@ class MainActivity : Activity() {
                 val device = adapter?.bondedDevices?.firstOrNull() 
                 
                 if (device != null) {
-                    // فتح قناة اتصال بلوتوث قياسية
                     val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
                     val socket = device.createRfcommSocketToServiceRecord(uuid)
                     socket.connect()
                     
                     val out = socket.outputStream
                     
-                    // 1. أمر تهيئة وضع الفواتير
+                    // أمر تهيئة الطابعة لوضع الفواتير
                     out.write(byteArrayOf(0x1B, 0x40))
                     
-                    // 2. إرسال النص
+                    // النص
                     val text = "=== EL SAYEH STORE ===\n\n$payloadText\n\n\n\n\n"
                     out.write(text.toByteArray(Charsets.UTF_8))
                     
                     out.flush()
-                    Thread.sleep(1500) // وقت كافي لضمان وصول البيانات قبل القفل
+                    Thread.sleep(1500) 
                     socket.close()
                     
                     runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة بنجاح", Toast.LENGTH_SHORT).show() }
