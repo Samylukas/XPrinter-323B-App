@@ -124,8 +124,20 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     Thread.sleep(500) 
-                    val tsplCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\nBARCODE 60,40,\"128\",80,1,0,2,2,\"\(barcode\"\r\nTEXT 100,140,\"3\",0,1,1,\"\)barcode\"\r\nPRINT 1,1\r\n"
-                    printerConnection.write(tsplCommand.toByteArray())
+                    
+                    // استخدام Raw String لعدم حدوث خطأ Illegal escape
+                    val command = """
+                        SIZE 38 mm,25 mm
+                        GAP 2 mm,0 mm
+                        DIRECTION 1
+                        CLS
+                        BARCODE 60,40,"128",80,1,0,2,2,"$barcode"
+                        TEXT 100,140,"3",0,1,1,"$barcode"
+                        PRINT 1,1
+                        
+                    """.trimIndent().replace("\n", "\r\n")
+                    
+                    printerConnection.write(command.toByteArray())
                     printerConnection.send() 
                     Thread.sleep(2000)
                     printerConnection.disconnect()
