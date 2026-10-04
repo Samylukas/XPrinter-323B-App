@@ -54,7 +54,6 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 40)
         }
 
-        // نافذة تجربة الملصقات
         val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (يجب ضبط الطابعة على EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
         val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
@@ -67,7 +66,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // نافذة تجربة الفواتير
         val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (يجب ضبط الطابعة على ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
         val receiptInput = EditText(this).apply { hint = "اكتب نص الفاتورة هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
@@ -119,13 +117,15 @@ class MainActivity : Activity() {
         }
     }
 
-    // تم إضافة \r\n لإنهاء الأوامر ومنع تهنيج الطابعة نهائياً
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                 if (printerConnection != null) {
                     printerConnection.connect()
+                    
+                    // إعطاء فرصة للطابعة للاستعداد بعد الاتصال
+                    Thread.sleep(500) 
                     
                     val tsplCommand = "SIZE 38 mm,25 mm\r\n" +
                                       "GAP 2 mm,0 mm\r\n" +
@@ -136,11 +136,13 @@ class MainActivity : Activity() {
                                       "PRINT 1,1\r\n"
 
                     printerConnection.write(tsplCommand.toByteArray())
-                    Thread.sleep(500)
+                    
+                    // السر هنا: الانتظار 3 ثواني كاملة لضمان تفريغ البلوتوث قبل القطع
+                    Thread.sleep(3000)
                     printerConnection.disconnect()
                     
                     runOnUiThread { 
-                        Toast.makeText(this, "تمت طباعة الملصق", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "تم إرسال الملصق بنجاح", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
@@ -158,11 +160,13 @@ class MainActivity : Activity() {
                     val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
                     val formattedText = "[C]**TEST RECEIPT**\n[L]\n[L]$payloadText\n[C]----------------\n"
                     printer.printFormattedText(formattedText)
-                    Thread.sleep(500)
+                    
+                    // الانتظار 3 ثواني كاملة
+                    Thread.sleep(3000)
                     printer.disconnectPrinter() 
                     
                     runOnUiThread { 
-                        Toast.makeText(this, "تمت طباعة الفاتورة", Toast.LENGTH_SHORT).show() 
+                        Toast.makeText(this, "تم إرسال الفاتورة", Toast.LENGTH_SHORT).show() 
                     }
                 }
             } catch (e: Exception) {
