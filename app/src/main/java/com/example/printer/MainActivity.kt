@@ -116,7 +116,15 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     Thread.sleep(500) 
-                    val tsplCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\nBARCODE 60,40,\"128\",80,1,0,2,2,\"\(barcode\"\r\nTEXT 100,140,\"3\",0,1,1,\"\)barcode\"\r\nPRINT 1,1\r\n"
+                    
+                    val tsplCommand = "SIZE 38 mm,25 mm\r\n" +
+                                      "GAP 2 mm,0 mm\r\n" +
+                                      "DIRECTION 1\r\n" +
+                                      "CLS\r\n" +
+                                      "BARCODE 60,40,\"128\",80,1,0,2,2,\"$barcode\"\r\n" +
+                                      "TEXT 100,140,\"3\",0,1,1,\"$barcode\"\r\n" +
+                                      "PRINT 1,1\r\n"
+                                      
                     printerConnection.write(tsplCommand.toByteArray())
                     printerConnection.send() 
                     Thread.sleep(2000)
@@ -129,7 +137,6 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // دالة الفواتير الخام: إنجليزي فقط لإثبات استجابة الطابعة الميكانيكية
     private fun printReceiptESC() {
         Thread {
             try {
@@ -138,14 +145,13 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(500)
                     
-                    // 1. أمر تهيئة الطابعة (ESC @)
                     printerConnection.write(byteArrayOf(0x1B, 0x40))
                     
-                    // 2. إرسال نص إنجليزي بحت (US_ASCII) لتجنب انهيار الطابعة بسبب الترميز
-                    val text = "SUCCESS! RECEIPT MODE IS WORKING.\r\nTESTING HARDWARE RESPONSE.\r\n-----------------------\r\n\r\n\r\n\r\n\r\n"
+                    val text = "SUCCESS! RECEIPT MODE IS WORKING.\r\n" +
+                               "TESTING HARDWARE RESPONSE.\r\n" +
+                               "-----------------------\r\n\r\n\r\n\r\n\r\n"
+                               
                     printerConnection.write(text.toByteArray(Charsets.US_ASCII))
-                    
-                    // 3. الدفع الفعلي للأوامر
                     printerConnection.send()
                     
                     Thread.sleep(3000)
