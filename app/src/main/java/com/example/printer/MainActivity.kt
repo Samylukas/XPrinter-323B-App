@@ -31,7 +31,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // استخدام ScrollView لكي لا تغطي لوحة المفاتيح على الأزرار
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -55,21 +54,21 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 40)
         }
 
-        // --- 1. نافذة تجربة الملصقات ---
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (تأكد أن الطابعة EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
-        val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا (مثال: 123456)..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
+        // نافذة تجربة الملصقات
+        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (يجب ضبط الطابعة على EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
+        val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
             text = "طباعة ملصق واحد 🏷️"
             setBackgroundColor(Color.parseColor("#8e44ad"))
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code) else Toast.makeText(context, "يرجى كتابة رقم الباركود", Toast.LENGTH_SHORT).show()
+                if (code.isNotEmpty()) printLabelTSPL(code) else Toast.makeText(context, "اكتب رقم الباركود", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // --- 2. نافذة تجربة الفواتير ---
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (تأكد أن الطابعة ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
+        // نافذة تجربة الفواتير
+        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (يجب ضبط الطابعة على ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
         val receiptInput = EditText(this).apply { hint = "اكتب نص الفاتورة هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
@@ -77,14 +76,8 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                if (txt.isNotEmpty()) printReceiptESC(txt) else Toast.makeText(context, "يرجى كتابة نص الفاتورة", Toast.LENGTH_SHORT).show()
+                if (txt.isNotEmpty()) printReceiptESC(txt) else Toast.makeText(context, "اكتب نص الفاتورة", Toast.LENGTH_SHORT).show()
             }
-        }
-        
-        val infoText = TextView(this).apply { 
-            text = "\n⚠️ ملاحظة: لطباعة فاتورة بنجاح، يجب تغيير وضع الطابعة فيزيائياً من EZD إلى وضع الفواتير ESC، وإلا ستتجاهل الطابعة الأمر."
-            setTextColor(Color.RED)
-            textSize = 14f
         }
 
         layout.addView(titleText)
@@ -95,7 +88,6 @@ class MainActivity : Activity() {
         layout.addView(receiptTitle)
         layout.addView(receiptInput)
         layout.addView(btnTestReceipt)
-        layout.addView(infoText)
         
         scrollView.addView(layout)
         setContentView(scrollView)
@@ -116,7 +108,7 @@ class MainActivity : Activity() {
         
         if (type == "label") {
             val barcode = data.getQueryParameter("barcode") ?: "0000"
-            statusText.text = "مستقبل أمر: طباعة ملصق للباركود $barcode"
+            statusText.text = "مستقبل أمر: طباعة ملصق $barcode"
             printLabelTSPL(barcode)
         } else {
             val printPayload = data.getQueryParameter("text")
@@ -127,8 +119,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- محرك طباعة الليبل (لغة TSPL الخام) ---
-    // هذا المحرك يرسل الأوامر مباشرة بدون مكتبة ESC، مما يمنع خروج ورقة فارغة ويمنع تهنيج الطابعة
+    // تم إضافة \r\n لإنهاء الأوامر ومنع تهنيج الطابعة نهائياً
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -136,61 +127,47 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     
-                    // أوامر TSPL لضبط الورقة على 38 مم عرض و 25 مم طول، وطباعة باركود ورقم واحد
-                    val tsplCommand = """
-                        SIZE 38 mm, 25 mm
-                        GAP 2 mm, 0 mm
-                        DIRECTION 1
-                        CLS
-                        BARCODE 20,40,"128",80,1,0,2,2,"$barcode"
-                        TEXT 20,140,"3",0,1,1,"$barcode"
-                        PRINT 1,1
-                        
-                    """.trimIndent()
+                    val tsplCommand = "SIZE 38 mm,25 mm\r\n" +
+                                      "GAP 2 mm,0 mm\r\n" +
+                                      "DIRECTION 1\r\n" +
+                                      "CLS\r\n" +
+                                      "BARCODE 20,40,\"128\",80,1,0,2,2,\"$barcode\"\r\n" +
+                                      "TEXT 20,140,\"3\",0,1,1,\"$barcode\"\r\n" +
+                                      "PRINT 1,1\r\n"
 
                     printerConnection.write(tsplCommand.toByteArray())
-                    Thread.sleep(400) // تأخير بسيط لضمان التفريغ
-                    printerConnection.disconnect() // إغلاق الاتصال بأمان تام
+                    Thread.sleep(500)
+                    printerConnection.disconnect()
                     
                     runOnUiThread { 
-                        Toast.makeText(this, "تم طباعة الملصق بنجاح", Toast.LENGTH_SHORT).show()
-                        statusText.text = "🟢 جاهز لاستقبال الأوامر"
+                        Toast.makeText(this, "تمت طباعة الملصق", Toast.LENGTH_SHORT).show()
                     }
-                } else {
-                    runOnUiThread { statusText.text = "🔴 لا توجد طابعة مقترنة" }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread { statusText.text = "🔴 خطأ تقني: ${e.message}" }
+                runOnUiThread { Toast.makeText(this, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
 
-    // --- محرك طباعة الفاتورة (لغة ESC/POS) ---
     private fun printReceiptESC(payloadText: String) {
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                 if (printerConnection != null) {
                     val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
-                    val formattedText = "[C]El Sayeh Store\n" +
-                                        "[L]\n" +
-                                        "[L]${payloadText.replace("\n", "\n[L]")}\n" +
-                                        "[C]--------------------------------\n"
+                    val formattedText = "[C]**TEST RECEIPT**\n[L]\n[L]$payloadText\n[C]----------------\n"
                     printer.printFormattedText(formattedText)
-                    Thread.sleep(400)
+                    Thread.sleep(500)
                     printer.disconnectPrinter() 
                     
                     runOnUiThread { 
-                        Toast.makeText(this, "تم إرسال الفاتورة", Toast.LENGTH_SHORT).show() 
-                        statusText.text = "🟢 جاهز لاستقبال الأوامر"
+                        Toast.makeText(this, "تمت طباعة الفاتورة", Toast.LENGTH_SHORT).show() 
                     }
-                } else {
-                    runOnUiThread { statusText.text = "🔴 لا توجد طابعة مقترنة" }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread { statusText.text = "🔴 خطأ تقني: ${e.message}" }
+                runOnUiThread { Toast.makeText(this, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
