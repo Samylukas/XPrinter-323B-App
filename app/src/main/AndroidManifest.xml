@@ -1,31 +1,33 @@
-<uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-<application
-    android:allowBackup="true"
-    android:label="El Sayeh Printer Bridge"
-    android:supportsRtl="true"
-    android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
-    
-    <!-- خاصية singleTask تمنع فتح التطبيق أكثر من مرة وتهنيج البلوتوث -->
-    <activity
-        android:name=".MainActivity"
-        android:exported="true"
-        android:launchMode="singleTask"> 
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+
+    <application
+        android:allowBackup="true"
+        android:label="El Sayeh Printer Bridge"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
         
-        <intent-filter>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent-filter>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"> 
+            
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
 
-        <!-- الكوبري: استقبال الروابط من متصفح كروم -->
-        <intent-filter>
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <data android:scheme="elsayeh" android:host="print" />
-        </intent-filter>
-    </activity>
-</application>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="elsayeh" android:host="print" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
