@@ -26,7 +26,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="elsayeh" android:host="print" />
+                <data android:scheme="printbridge" android:host="print" />
             </intent-filter>
         </activity>
     </application>
