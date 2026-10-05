@@ -124,13 +124,15 @@ class MainActivity : Activity() {
                 if (printerConnection != null) {
                     printerConnection.connect()
                     Thread.sleep(500) 
+                    
+                    // التعديل هنا: خلينا الباركود مايطبعش أرقام (0) واعتمدنا على سطر الـ TEXT بس
                     val command = """
                         SIZE 38 mm,25 mm
                         GAP 2 mm,0 mm
                         DIRECTION 1
                         CLS
-                        BARCODE 60,40,"128",80,1,0,2,2,"$barcode"
-                        TEXT 100,140,"3",0,1,1,"$barcode"
+                        BARCODE 60,40,"128",80,0,0,2,2,"$barcode"
+                        TEXT 90,130,"3",0,1,1,"$barcode"
                         PRINT 1,1
                         
                     """.trimIndent().replace("\n", "\r\n")
