@@ -3,8 +3,6 @@ package com.example.printer
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
@@ -52,7 +50,7 @@ class MainActivity : Activity() {
         }
 
         statusText = TextView(this).apply {
-            text = "🟢 جاهز لاستقبال الأوامر من جوجل شيت"
+            text = "🟢 جاهز لاستقبال الأوامر من الموقع"
             textSize = 16f
             setTextColor(Color.parseColor("#27ae60"))
             gravity = Gravity.CENTER
@@ -79,7 +77,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                printReceiptDirect(if (txt.isNotEmpty()) txt else "TEST RECEIPT")
+                printReceiptDirect(if (txt.isNotEmpty()) txt else "اختبار الفاتورة\nشغال ممتاز!")
             }
         }
 
@@ -117,6 +115,7 @@ class MainActivity : Activity() {
         }
     }
 
+    // محرك الملصقات (الناجح والمستقر)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -125,7 +124,6 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(500) 
                     
-                    // التعديل هنا: خلينا الباركود مايطبعش أرقام (0) واعتمدنا على سطر الـ TEXT بس
                     val command = """
                         SIZE 38 mm,25 mm
                         GAP 2 mm,0 mm
@@ -149,6 +147,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    // محرك الفواتير الجديد: يحول العربي لصورة ويطبعها بدون مكتبات خارجية
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String) {
         Thread {
@@ -163,16 +162,80 @@ class MainActivity : Activity() {
                     socket.connect()
                     val out = socket.outputStream
                     
-                    out.write(byteArrayOf(0x1B, 0x40))
-                    val text = "=== EL SAYEH STORE ===\r\n$payloadText\r\n\r\n\r\n"
-                    out.write(text.toByteArray(Charsets.UTF_8))
-                    out.write(byteArrayOf(0x1B, 0x64, 0x05))
+                    // 1. إعداد الخط والتنسيق
+                    val textPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                    textPaint.color = android.graphics.Color.BLACK
+                    textPaint.textSize = 32f
+                    textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
+                    val formattedText = "=== EL SAYEH STORE ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
+                    val printWidth = 576 // مقاس الطابعة الـ 80 مللي
+                    
+                    val staticLayout = android.text.StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
+                        .setAlignment(android.text.Layout.Alignment.ALIGN_CENTER)
+                        .setLineSpacing(0f, 1.2f)
+                        .setIncludePad(false)
+                        .build()
+                        
+                    // 2. تحويل الكلام لصورة (Bitmap)
+                    val bitmap = android.graphics.Bitmap.createBitmap(printWidth, staticLayout.height + 40, android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    canvas.drawColor(android.graphics.Color.WHITE)
+                    canvas.translate(0f, 20f)
+                    staticLayout.draw(canvas)
+
+                    // 3. إرسال الصورة للطابعة كنقط حبر (Raster Command)
+                    out.write(byteArrayOf(0x1B, 0x40)) // تهيئة الطابعة
+                    
+                    val bmpWidth = bitmap.width
+                    val bmpHeight = bitmap.height
+                    var offset = 0
+                    
+                    while (offset < bmpHeight) {
+                        val chunkHeight = if (bmpHeight - offset > 255) 255 else bmpHeight - offset
+                        
+                        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
+                        
+                        val xL = (bmpWidth / 8) % 256
+                        val xH = (bmpWidth / 8) / 256
+                        out.write(byteArrayOf(xL.toByte(), xH.toByte()))
+                        
+                        val yL = chunkHeight % 256
+                        val yH = chunkHeight / 256
+                        out.write(byteArrayOf(yL.toByte(), yH.toByte()))
+                        
+                        val rowBytes = ByteArray((bmpWidth / 8) * chunkHeight)
+                        var index = 0
+                        
+                        for (y in 0 until chunkHeight) {
+                            for (x in 0 until bmpWidth step 8) {
+                                var b = 0
+                                for (k in 0..7) {
+                                    if (x + k < bmpWidth) {
+                                        val color = bitmap.getPixel(x + k, offset + y)
+                                        val r = android.graphics.Color.red(color)
+                                        val g = android.graphics.Color.green(color)
+                                        val bColor = android.graphics.Color.blue(color)
+                                        val luminance = (0.299 * r + 0.587 * g + 0.114 * bColor).toInt()
+                                        if (luminance < 128) {
+                                            b = b or (1 shl (7 - k))
+                                        }
+                                    }
+                                }
+                                rowBytes[index++] = b.toByte()
+                            }
+                        }
+                        out.write(rowBytes)
+                        offset += chunkHeight
+                    }
+                    
+                    // 4. أمر تمشية الورق والقص
+                    out.write(byteArrayOf(0x1B, 0x64, 0x05))
                     out.flush()
-                    Thread.sleep(2500) 
+                    Thread.sleep(3000) 
                     socket.close()
                     
-                    runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
