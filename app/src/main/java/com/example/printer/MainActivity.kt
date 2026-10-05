@@ -3,10 +3,6 @@ package com.example.printer
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -20,8 +16,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.dantsu.escposprinter.EscPosPrinter
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
-import java.util.UUID
+import com.dantsu.escposprinter.textparser.PrinterTextParserImg
 
 class MainActivity : Activity() {
 
@@ -52,14 +49,14 @@ class MainActivity : Activity() {
         }
 
         statusText = TextView(this).apply {
-            text = "🟢 جاهز لاستقبال الأوامر"
+            text = "🟢 جاهز لاستقبال الأوامر من الموقع"
             textSize = 16f
             setTextColor(Color.parseColor("#27ae60"))
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 40)
         }
 
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
+        val labelTitle = TextView(this).apply { text = "1. اختبار الملصقات"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
         val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
             text = "طباعة ملصق واحد 🏷️"
@@ -71,15 +68,15 @@ class MainActivity : Activity() {
             }
         }
 
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
-        val receiptInput = EditText(this).apply { hint = "اكتب الفاتورة (انجليزي/ارقام)..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
+        val receiptTitle = TextView(this).apply { text = "2. اختبار الفواتير"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
+        val receiptInput = EditText(this).apply { hint = "اكتب فاتورة عربي/انجليزي..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
-            text = "طباعة فاتورة تجريبية 🧾"
+            text = "طباعة فاتورة 🧾"
             setBackgroundColor(Color.parseColor("#3498db"))
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                printReceiptDirect(if (txt.isNotEmpty()) txt else "TEST 123")
+                printReceiptAsImage(if (txt.isNotEmpty()) txt else "اختبار الفاتورة\nبنجاح!")
             }
         }
 
@@ -112,11 +109,12 @@ class MainActivity : Activity() {
             val barcode = data.getQueryParameter("barcode") ?: "0000"
             printLabelTSPL(barcode)
         } else {
-            val text = data.getQueryParameter("text") ?: "TEST 123"
-            printReceiptDirect(text)
+            val text = data.getQueryParameter("text") ?: "فاتورة من الموقع"
+            printReceiptAsImage(text)
         }
     }
 
+    // محرك الملصقات (يعمل بشكل مثالي ومستقر)
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -139,7 +137,7 @@ class MainActivity : Activity() {
                     printerConnection.send() 
                     Thread.sleep(2000)
                     printerConnection.disconnect()
-                    runOnUiThread { Toast.makeText(this, "تم أمر الملصق", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this, "تمت الطباعة", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -147,44 +145,35 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    @SuppressLint("MissingPermission")
-    private fun printReceiptDirect(payloadText: String) {
+    // محرك الفواتير الجديد: يحول الكلام لصورة عشان يطبع عربي/إنجليزي غصب عن الطابعة
+    private fun printReceiptAsImage(payloadText: String) {
         Thread {
             try {
-                val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-                val adapter = bluetoothManager.adapter
-                val device = adapter?.bondedDevices?.firstOrNull() 
-                
-                if (device != null) {
-                    val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-                    val socket = device.createRfcommSocketToServiceRecord(uuid)
-                    socket.connect()
-                    val out = socket.outputStream
+                val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
+                if (printerConnection != null) {
+                    val printer = EscPosPrinter(printerConnection, 203, 72f, 48)
                     
-                    // 1. أمر تهيئة الطابعة (يمسح أي أخطاء سابقة)
-                    out.write(byteArrayOf(0x1B, 0x40))
+                    // 1. إعداد الخط العربي الجميل وتنسيقه
+                    val textPaint = android.text.TextPaint(android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG))
+                    textPaint.color = android.graphics.Color.BLACK
+                    textPaint.textSize = 36f
+                    textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
-                    // 2. إرسال النص مع نهايات الأسطر الصحيحة للطابعة
-                    val text = "=== EL SAYEH STORE ===\r\n$payloadText\r\n"
-                    out.write(text.toByteArray(Charsets.US_ASCII))
+                    val formattedText = "=== EL SAYEH STORE ===\n\n$payloadText\n\nشكراً لزيارتكم\n\n\n"
                     
-                    // 3. الأمر السحري: اطبــــــع الحبر ومشي الورق 5 سطور (ESC d 5)
-                    out.write(byteArrayOf(0x1B, 0x64, 0x05))
+                    val staticLayout = android.text.StaticLayout(
+                        formattedText, textPaint, 576, android.text.Layout.Alignment.ALIGN_CENTER, 1.2f, 0f, false
+                    )
                     
-                    out.flush()
+                    // 2. تحويل الكلام إلى صورة (Bitmap)
+                    val bitmap = android.graphics.Bitmap.createBitmap(576, staticLayout.height + 40, android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    canvas.drawColor(android.graphics.Color.WHITE)
+                    canvas.translate(0f, 20f)
+                    staticLayout.draw(canvas)
                     
-                    // 4. ننتظر 2.5 ثانية (وقت كافي جداً للمكنة عشان تحرق الحبر على الورق قبل ما نقطع الاتصال)
-                    Thread.sleep(2500) 
-                    socket.close()
+                    // 3. إرسال الصورة للطابعة (نفس فكرة 4print)
+                    val drawable = android.graphics.drawable.BitmapDrawable(resources, bitmap)
+                    val hexImage = PrinterTextParserImg.bitmapToHexadecimalString(printer, drawable)
                     
-                    runOnUiThread { Toast.makeText(this, "تم أمر الفاتورة بنجاح", Toast.LENGTH_SHORT).show() }
-                } else {
-                    runOnUiThread { Toast.makeText(this, "لا توجد طابعة مقترنة", Toast.LENGTH_SHORT).show() }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                runOnUiThread { Toast.makeText(this, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
-            }
-        }.start()
-    }
-}
+                    printer.printFormattedTextAndCut("[C]
