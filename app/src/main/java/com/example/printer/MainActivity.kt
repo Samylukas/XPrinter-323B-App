@@ -203,7 +203,7 @@ class MainActivity : Activity() {
                     textPaint.textSize = 32f
                     textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
-                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
+                    val formattedText = "\n$payloadText\n"
                     val printWidth = 576 
                     
                     val staticLayout = android.text.StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
