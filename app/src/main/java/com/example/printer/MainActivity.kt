@@ -6,106 +6,17 @@ import android.app.Activity
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Color
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
 import java.util.UUID
 
 class MainActivity : Activity() {
 
-    private lateinit var statusText: TextView
-
     override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    
-    // 💡 قم بتعطيل أو مسح هذا السطر حتى لا يحاول رسم واجهة
-    // setContentView(R.layout.activity_main) 
-
-    // استلام البيانات القادمة من تطبيق الصيدلية
-    val uri: Uri? = intent.data
-    if (uri != null && uri.scheme == "printbridge") {
-        
-        // --- هنا يكون الكود الخاص بك الذي يستخرج النص ويطبع ---
-        // مثال: val textToPrint = uri.getQueryParameter("text")
-        // executeBluetoothPrint(textToPrint)
-        // -----------------------------------------------------
-
-        // 🔥 هذا هو السطر السحري: إغلاق تطبيق الطباعة فوراً للعودة للصيدلية
-        finish()
-    } else {
-        // إذا تم فتح التطبيق يدوياً وليس عبر أمر طباعة، نغلقه أيضاً لأنه أصبح للطباعة في الخلفية فقط
-        finish()
-    }
-}
-
-        val scrollView = ScrollView(this)
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(40, 60, 40, 60)
-            setBackgroundColor(Color.parseColor("#f0f4f8"))
-        }
-
-        val titleText = TextView(this).apply {
-            text = "🖨️ Print Bridge"
-            textSize = 24f
-            setTextColor(Color.parseColor("#1e3c72"))
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 20)
-        }
-
-        statusText = TextView(this).apply {
-            text = "🟢 جاهز لاستقبال الأوامر من الموقع"
-            textSize = 16f
-            setTextColor(Color.parseColor("#27ae60"))
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 40)
-        }
-
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
-        val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
-        val btnTestLabel = Button(this).apply {
-            text = "طباعة ملصق واحد 🏷️"
-            setBackgroundColor(Color.parseColor("#8e44ad"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
-        val receiptInput = EditText(this).apply { hint = "اختبار الفاتورة..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
-        val btnTestReceipt = Button(this).apply {
-            text = "طباعة فاتورة تجريبية 🧾"
-            setBackgroundColor(Color.parseColor("#3498db"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                val txt = receiptInput.text.toString()
-                printReceiptDirect(if (txt.isNotEmpty()) txt else "اختبار الفاتورة\nشغال ممتاز!")
-            }
-        }
-
-        layout.addView(titleText)
-        layout.addView(statusText)
-        layout.addView(labelTitle)
-        layout.addView(labelInput)
-        layout.addView(btnTestLabel)
-        layout.addView(receiptTitle)
-        layout.addView(receiptInput)
-        layout.addView(btnTestReceipt)
-        
-        scrollView.addView(layout)
-        setContentView(scrollView)
+        super.onCreate(savedInstanceState)
+        // لا حاجة لـ setContentView لأن التطبيق سيكون شفافاً تماماً وبدون واجهة
         handlePrintIntent(intent)
     }
 
@@ -116,20 +27,29 @@ class MainActivity : Activity() {
     }
 
     private fun handlePrintIntent(intent: Intent?) {
-        if (intent == null || intent.action != Intent.ACTION_VIEW || intent.data == null) return
-        val data: Uri = intent.data!!
-        val type = data.getQueryParameter("type")
+        // إذا تم فتح التطبيق يدوياً بالغلط بدون أمر طباعة، نقفله فوراً
+        if (intent == null || intent.data == null) {
+            finish()
+            return
+        }
         
-        if (type == "label") {
-            val barcode = data.getQueryParameter("barcode") ?: "0000"
-            printLabelTSPL(barcode)
+        val data: Uri = intent.data!!
+        if (data.scheme == "printbridge") {
+            val type = data.getQueryParameter("type")
+            
+            if (type == "label") {
+                val barcode = data.getQueryParameter("barcode") ?: "0000"
+                printLabelTSPL(barcode)
+            } else {
+                val text = data.getQueryParameter("text") ?: "TEST RECEIPT"
+                printReceiptDirect(text)
+            }
         } else {
-            val text = data.getQueryParameter("text") ?: "TEST RECEIPT"
-            printReceiptDirect(text)
+            finish()
         }
     }
 
-    // محرك الملصقات (الناجح والمستقر)
+    // محرك الملصقات
     private fun printLabelTSPL(barcode: String) {
         Thread {
             try {
@@ -153,15 +73,19 @@ class MainActivity : Activity() {
                     printerConnection.send() 
                     Thread.sleep(2000)
                     printerConnection.disconnect()
-                    runOnUiThread { Toast.makeText(this, "تم أمر الملصق", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "✅ تم إرسال الملصق للطابعة", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                runOnUiThread { Toast.makeText(this@MainActivity, "❌ خطأ في الاتصال بالطابعة", Toast.LENGTH_SHORT).show() }
+            } finally {
+                // السطر السحري: إغلاق التطبيق الشفاف والعودة للصيدلية فوراً بعد انتهاء مهمة الطباعة
+                finish()
             }
         }.start()
     }
 
-    // محرك الفواتير الجديد: يحول العربي لصورة ويطبعها بدون مكتبات خارجية
+    // محرك الفواتير
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String) {
         Thread {
@@ -176,13 +100,13 @@ class MainActivity : Activity() {
                     socket.connect()
                     val out = socket.outputStream
                     
-                    // 1. إعداد الخط والتنسيق
                     val textPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
                     textPaint.color = android.graphics.Color.BLACK
                     textPaint.textSize = 32f
                     textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
-                    val formattedText = "=== EL SAYEH STORE ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
+                    // تم مسح اسم المحل القديم تماماً واستخدام النص القادم من الصيدلية مباشرة
+                    val formattedText = "$payloadText\n"
                     val printWidth = 576 // مقاس الطابعة الـ 80 مللي
                     
                     val staticLayout = android.text.StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
@@ -191,15 +115,13 @@ class MainActivity : Activity() {
                         .setIncludePad(false)
                         .build()
                         
-                    // 2. تحويل الكلام لصورة (Bitmap)
                     val bitmap = android.graphics.Bitmap.createBitmap(printWidth, staticLayout.height + 40, android.graphics.Bitmap.Config.ARGB_8888)
                     val canvas = android.graphics.Canvas(bitmap)
                     canvas.drawColor(android.graphics.Color.WHITE)
                     canvas.translate(0f, 20f)
                     staticLayout.draw(canvas)
 
-                    // 3. إرسال الصورة للطابعة كنقط حبر (Raster Command)
-                    out.write(byteArrayOf(0x1B, 0x40)) // تهيئة الطابعة
+                    out.write(byteArrayOf(0x1B, 0x40)) 
                     
                     val bmpWidth = bitmap.width
                     val bmpHeight = bitmap.height
@@ -243,16 +165,19 @@ class MainActivity : Activity() {
                         offset += chunkHeight
                     }
                     
-                    // 4. أمر تمشية الورق والقص
                     out.write(byteArrayOf(0x1B, 0x64, 0x05))
                     out.flush()
                     Thread.sleep(3000) 
                     socket.close()
                     
-                    runOnUiThread { Toast.makeText(this, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "✅ تم طباعة الفاتورة!", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                runOnUiThread { Toast.makeText(this@MainActivity, "❌ خطأ في الاتصال بالطابعة", Toast.LENGTH_SHORT).show() }
+            } finally {
+                // إغلاق التطبيق الشفاف والعودة للصيدلية
+                finish()
             }
         }.start()
     }
