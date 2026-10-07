@@ -28,10 +28,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. طلب صلاحيات البلوتوث فور فتح التطبيق
         requestBluetoothPermissions()
 
-        // 2. بناء الواجهة لتكون متاحة عند فتح التطبيق يدوياً للاختبار
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -63,7 +61,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code, false) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
+                if (code.isNotEmpty()) printLabelTSPL(code, "منتج تجريبي", "100 EGP", false) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -91,7 +89,6 @@ class MainActivity : Activity() {
         scrollView.addView(layout)
         setContentView(scrollView)
         
-        // 3. التحقق مما إذا كان التطبيق فُتح عن طريق أمر من برنامج الصيدلية
         handlePrintIntent(intent)
     }
 
@@ -130,13 +127,14 @@ class MainActivity : Activity() {
         val data: Uri = intent.data!!
         
         if (data.scheme == "printbridge") {
-            // الخدعة السحرية: إرسال هذا التطبيق للخلفية فوراً ليعود المستخدم لتطبيق الصيدلية
             moveTaskToBack(true)
             
             val type = data.getQueryParameter("type")
             if (type == "label") {
                 val barcode = data.getQueryParameter("barcode") ?: "0000"
-                printLabelTSPL(barcode, true) 
+                val name = data.getQueryParameter("name") ?: ""
+                val price = data.getQueryParameter("price") ?: ""
+                printLabelTSPL(barcode, name, price, true) 
             } else {
                 val text = data.getQueryParameter("text") ?: "TEST RECEIPT"
                 printReceiptDirect(text, true) 
@@ -144,8 +142,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // محرك الملصقات
-    private fun printLabelTSPL(barcode: String, autoClose: Boolean) {
+    private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري إرسال الملصق للطابعة...", Toast.LENGTH_SHORT).show()
         Thread {
             try {
@@ -159,8 +156,10 @@ class MainActivity : Activity() {
                         GAP 2 mm,0 mm
                         DIRECTION 1
                         CLS
-                        BARCODE 60,40,"128",80,0,0,2,2,"$barcode"
-                        TEXT 90,130,"3",0,1,1,"$barcode"
+                        ${if (prodName.isNotEmpty()) "TEXT 150,20,\"3\",0,1,1,2,\"$prodName\"" else ""}
+                        BARCODE 40,70,"128",70,0,0,2,2,"$barcode"
+                        TEXT 150,150,"3",0,1,1,2,"$barcode"
+                        ${if (prodPrice.isNotEmpty()) "TEXT 150,185,\"3\",0,1,1,2,\"$prodPrice\"" else ""}
                         PRINT 1,1
                         
                     """.trimIndent().replace("\n", "\r\n")
@@ -184,7 +183,6 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // محرك الفواتير
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري إرسال الفاتورة للطابعة...", Toast.LENGTH_SHORT).show()
@@ -205,7 +203,7 @@ class MainActivity : Activity() {
                     textPaint.textSize = 32f
                     textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
-                    val formattedText = "\n\n$payloadText\n\n\n"
+                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
                     val printWidth = 576 
                     
                     val staticLayout = android.text.StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
