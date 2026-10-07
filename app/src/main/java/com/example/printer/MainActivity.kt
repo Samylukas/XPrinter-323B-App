@@ -26,13 +26,27 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    super.onCreate(savedInstanceState)
+    
+    // 💡 قم بتعطيل أو مسح هذا السطر حتى لا يحاول رسم واجهة
+    // setContentView(R.layout.activity_main) 
+
+    // استلام البيانات القادمة من تطبيق الصيدلية
+    val uri: Uri? = intent.data
+    if (uri != null && uri.scheme == "printbridge") {
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN), 1)
-            }
-        }
+        // --- هنا يكون الكود الخاص بك الذي يستخرج النص ويطبع ---
+        // مثال: val textToPrint = uri.getQueryParameter("text")
+        // executeBluetoothPrint(textToPrint)
+        // -----------------------------------------------------
+
+        // 🔥 هذا هو السطر السحري: إغلاق تطبيق الطباعة فوراً للعودة للصيدلية
+        finish()
+    } else {
+        // إذا تم فتح التطبيق يدوياً وليس عبر أمر طباعة، نغلقه أيضاً لأنه أصبح للطباعة في الخلفية فقط
+        finish()
+    }
+}
 
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
