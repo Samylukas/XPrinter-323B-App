@@ -28,8 +28,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 1. طلب صلاحيات البلوتوث فور فتح التطبيق
         requestBluetoothPermissions()
 
+        // 2. بناء الواجهة لتكون متاحة عند فتح التطبيق يدوياً للاختبار
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -61,7 +63,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code, "منتج تجريبي", "100 EGP", false) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
+                if (code.isNotEmpty()) printLabelTSPL(code, "Test Product", "100.00 EGP", false) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -89,6 +91,7 @@ class MainActivity : Activity() {
         scrollView.addView(layout)
         setContentView(scrollView)
         
+        // 3. التحقق مما إذا كان التطبيق فُتح عن طريق أمر من برنامج الصيدلية
         handlePrintIntent(intent)
     }
 
@@ -142,6 +145,7 @@ class MainActivity : Activity() {
         }
     }
 
+    // محرك الملصقات الجاهز والمعدل
     private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري إرسال الملصق للطابعة...", Toast.LENGTH_SHORT).show()
         Thread {
@@ -156,10 +160,10 @@ class MainActivity : Activity() {
                         GAP 2 mm,0 mm
                         DIRECTION 1
                         CLS
-                        ${if (prodName.isNotEmpty()) "TEXT 150,20,\"3\",0,1,1,2,\"$prodName\"" else ""}
-                        BARCODE 40,70,"128",70,0,0,2,2,"$barcode"
-                        TEXT 150,150,"3",0,1,1,2,"$barcode"
-                        ${if (prodPrice.isNotEmpty()) "TEXT 150,185,\"3\",0,1,1,2,\"$prodPrice\"" else ""}
+                        ${if (prodName.isNotEmpty()) "TEXT 50,15,\"3\",0,1,1,\"$prodName\"" else ""}
+                        BARCODE 40,50,"128",60,0,0,2,2,"$barcode"
+                        TEXT 100,115,"2",0,1,1,"$barcode"
+                        ${if (prodPrice.isNotEmpty()) "TEXT 90,150,\"3\",0,1,1,\"$prodPrice\"" else ""}
                         PRINT 1,1
                         
                     """.trimIndent().replace("\n", "\r\n")
@@ -183,6 +187,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    // محرك الفواتير
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري إرسال الفاتورة للطابعة...", Toast.LENGTH_SHORT).show()
@@ -203,7 +208,7 @@ class MainActivity : Activity() {
                     textPaint.textSize = 32f
                     textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
-                    val formattedText = "\n$payloadText\n"
+                    val formattedText = "\n\n$payloadText\n"
                     val printWidth = 576 
                     
                     val staticLayout = android.text.StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
