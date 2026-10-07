@@ -6,8 +6,10 @@ import android.app.Activity
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
@@ -26,7 +28,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. بناء الواجهة لتكون متاحة عند فتح التطبيق يدوياً للاختبار
+        // 1. طلب صلاحيات البلوتوث فور فتح التطبيق
+        requestBluetoothPermissions()
+
+        // 2. بناء الواجهة لتكون متاحة عند فتح التطبيق يدوياً للاختبار
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -58,7 +63,6 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val code = labelInput.text.toString()
-                // false تعني لا تغلق التطبيق بعد الطباعة (لأننا نختبر يدوياً)
                 if (code.isNotEmpty()) printLabelTSPL(code, false) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
             }
         }
@@ -71,7 +75,6 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                // false تعني لا تغلق التطبيق بعد الطباعة (لأننا نختبر يدوياً)
                 printReceiptDirect(if (txt.isNotEmpty()) txt else "اختبار الفاتورة\nشغال ممتاز!", false)
             }
         }
@@ -88,8 +91,32 @@ class MainActivity : Activity() {
         scrollView.addView(layout)
         setContentView(scrollView)
         
-        // 2. التحقق مما إذا كان التطبيق فُتح عن طريق أمر من برنامج الصيدلية
+        // 3. التحقق مما إذا كان التطبيق فُتح عن طريق أمر من برنامج الصيدلية
         handlePrintIntent(intent)
+    }
+
+    private fun requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val permissions = mutableListOf<String>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+                }
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+                }
+            } else {
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(Manifest.permission.BLUETOOTH)
+                }
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
+                }
+            }
+            if (permissions.isNotEmpty()) {
+                requestPermissions(permissions.toTypedArray(), 1)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -99,21 +126,19 @@ class MainActivity : Activity() {
     }
 
     private fun handlePrintIntent(intent: Intent?) {
-        if (intent == null || intent.action != Intent.ACTION_VIEW || intent.data == null) return
+        if (intent == null || intent.data == null) return
         val data: Uri = intent.data!!
         
         if (data.scheme == "printbridge") {
-            // 🔥 الخدعة السحرية: إرسال هذا التطبيق للخلفية فوراً ليعود المستخدم لتطبيق الصيدلية بدون أن يلاحظ شيئاً
+            // الخدعة السحرية: إرسال هذا التطبيق للخلفية فوراً ليعود المستخدم لتطبيق الصيدلية
             moveTaskToBack(true)
             
             val type = data.getQueryParameter("type")
             if (type == "label") {
                 val barcode = data.getQueryParameter("barcode") ?: "0000"
-                // true تعني قم بإغلاق التطبيق نهائياً بعد انتهاء الطباعة في الخلفية
                 printLabelTSPL(barcode, true) 
             } else {
                 val text = data.getQueryParameter("text") ?: "TEST RECEIPT"
-                // true تعني قم بإغلاق التطبيق نهائياً بعد انتهاء الطباعة في الخلفية
                 printReceiptDirect(text, true) 
             }
         }
@@ -121,6 +146,7 @@ class MainActivity : Activity() {
 
     // محرك الملصقات
     private fun printLabelTSPL(barcode: String, autoClose: Boolean) {
+        Toast.makeText(this, "جاري إرسال الملصق للطابعة...", Toast.LENGTH_SHORT).show()
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
@@ -144,11 +170,13 @@ class MainActivity : Activity() {
                     Thread.sleep(2000)
                     printerConnection.disconnect()
                     runOnUiThread { Toast.makeText(this@MainActivity, "تم أمر الملصق", Toast.LENGTH_SHORT).show() }
+                } else {
+                    runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                runOnUiThread { Toast.makeText(this@MainActivity, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             } finally {
-                // تدمير التطبيق المخفي بعد انتهاء الطباعة
                 if (autoClose) {
                     runOnUiThread { finish() }
                 }
@@ -159,6 +187,7 @@ class MainActivity : Activity() {
     // محرك الفواتير
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
+        Toast.makeText(this, "جاري إرسال الفاتورة للطابعة...", Toast.LENGTH_SHORT).show()
         Thread {
             try {
                 val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -176,7 +205,6 @@ class MainActivity : Activity() {
                     textPaint.textSize = 32f
                     textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                     
-                    // تم تغيير الاسم ليصبح Anjum Green Pharmacy
                     val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
                     val printWidth = 576 
                     
@@ -237,11 +265,13 @@ class MainActivity : Activity() {
                     Thread.sleep(3000) 
                     socket.close()
                     runOnUiThread { Toast.makeText(this@MainActivity, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show() }
+                } else {
+                    runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                runOnUiThread { Toast.makeText(this@MainActivity, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             } finally {
-                // تدمير التطبيق المخفي بعد انتهاء الطباعة
                 if (autoClose) {
                     runOnUiThread { finish() }
                 }
