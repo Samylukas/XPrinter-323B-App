@@ -275,7 +275,7 @@ class MainActivity : Activity() {
                         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                     }
                     
-                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
+                    val formattedText = "\n$payloadText\n"
                     val printWidth = 576 
                     
                     val staticLayout = StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
