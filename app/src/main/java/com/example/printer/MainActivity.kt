@@ -45,7 +45,7 @@ class MainActivity : Activity() {
         }
 
         val titleText = TextView(this).apply {
-            text = "🖨️ Print Bridge (Arabic TSPL Supported)"
+            text = "🖨️ Print Bridge"
             textSize = 22f
             setTextColor(Color.parseColor("#1e3c72"))
             gravity = Gravity.CENTER
@@ -100,45 +100,18 @@ class MainActivity : Activity() {
         handlePrintIntent(intent)
     }
 
-    // دالة تحويل الصورة مع ضبط منطق الألوان لمنع الخلفية السوداء
-    private fun bitmapToTsplBitmapCommand(bitmap: Bitmap, x: Int, y: Int): ByteArray {
-        val width = bitmap.width
-        val height = bitmap.height
-        val widthBytes = (width + 7) / 8
-        val stream = java.io.ByteArrayOutputStream()
-
-        val commandHead = "BITMAP $x,$y,$widthBytes,$height,0,"
-        stream.write(commandHead.toByteArray())
-
-        val imgData = ByteArray(widthBytes * height)
-        var byteIndex = 0
-
-        for (h in 0 until height) {
-            for (w in 0 until widthBytes) {
-                var b = 0
-                for (bit in 0 until 8) {
-                    val pxX = w * 8 + bit
-                    if (pxX < width) {
-                        val color = bitmap.getPixel(pxX, h)
-                        val r = Color.red(color)
-                        val g = Color.green(color)
-                        val blue = Color.blue(color)
-                        val luminance = (0.299 * r + 0.587 * g + 0.114 * blue).toInt()
-                        
-                        // تم عكس الشرط هنا: اللون الداكن (الكتابة) هو الذي نضع له 1 واللون الفاتح (الخلفية البيضاء) نتركه 0
-                        if (luminance >= 128) {
-                            b = b or (1 shl (7 - bit))
-                        }
-                    } else {
-                        b = b or (1 shl (7 - bit))
-                    }
-                }
-                imgData[byteIndex++] = b.toByte()
+    private fun requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val permissions = mutableListOf<String>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            } else {
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH)
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
             }
+            if (permissions.isNotEmpty()) requestPermissions(permissions.toTypedArray(), 1)
         }
-        stream.write(imgData)
-        stream.write("\r\n".toByteArray())
-        return stream.toByteArray()
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -167,7 +140,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // 🔥 المحرك السحري لطباعة العربي على طابعات الباركود TSPL عبر تحويل الرسوم
     private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري طباعة الملصق العربي...", Toast.LENGTH_SHORT).show()
         Thread {
@@ -177,7 +149,6 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(300) 
 
-                    // 1. رسم الملصق بالكامل باللغة العربية كـ Bitmap في الذاكرة
                     val labelWidthPx = 304  // يعادل 38mm بدقة 203dpi
                     val labelHeightPx = 200 // يعادل 25mm بدقة 203dpi
                     val bitmap = Bitmap.createBitmap(labelWidthPx, labelHeightPx, Bitmap.Config.ARGB_8888)
@@ -216,15 +187,12 @@ class MainActivity : Activity() {
                     priceLayout.draw(canvas)
                     canvas.restore()
 
-                    // 2. تجهيز أوامر TSPL
                     val headerCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\n"
                     printerConnection.write(headerCommand.toByteArray())
 
-                    // إرسال صورة النص السفلية والعلوية
                     val bmpBytes = bitmapToTsplBitmapCommand(bitmap, 0, 0)
                     printerConnection.write(bmpBytes)
 
-                    // طباعة الباركود النصي في المنتصف
                     val barcodeCommand = "BARCODE 30,55,\"128\",60,0,0,2,2,\"$barcode\"\r\nTEXT 100,120,\"2\",0,1,1,\"$barcode\"\r\nPRINT 1,1\r\n"
                     printerConnection.write(barcodeCommand.toByteArray())
 
@@ -246,7 +214,6 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // دالة تحويل الصورة إلى أمر BITMAP المفهوم لطابعات TSPL
     private fun bitmapToTsplBitmapCommand(bitmap: Bitmap, x: Int, y: Int): ByteArray {
         val width = bitmap.width
         val height = bitmap.height
@@ -270,9 +237,13 @@ class MainActivity : Activity() {
                         val g = Color.green(color)
                         val blue = Color.blue(color)
                         val luminance = (0.299 * r + 0.587 * g + 0.114 * blue).toInt()
-                        if (luminance < 128) {
+                        
+                        // تصحيح الألوان: جعل الخلفية بيضاء والنص أسود
+                        if (luminance >= 128) {
                             b = b or (1 shl (7 - bit))
                         }
+                    } else {
+                        b = b or (1 shl (7 - bit))
                     }
                 }
                 imgData[byteIndex++] = b.toByte()
@@ -283,7 +254,6 @@ class MainActivity : Activity() {
         return stream.toByteArray()
     }
 
-    // محرك الفواتير
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري إرسال الفاتورة للطابعة...", Toast.LENGTH_SHORT).show()
