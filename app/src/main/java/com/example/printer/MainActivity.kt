@@ -7,10 +7,17 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.view.Gravity
 import android.widget.Button
 import android.widget.EditText
@@ -28,10 +35,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. طلب صلاحيات البلوتوث فور فتح التطبيق
         requestBluetoothPermissions()
 
-        // 2. بناء الواجهة لتكون متاحة عند فتح التطبيق يدوياً للاختبار
         val scrollView = ScrollView(this)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -40,34 +45,35 @@ class MainActivity : Activity() {
         }
 
         val titleText = TextView(this).apply {
-            text = "🖨️ Print Bridge"
-            textSize = 24f
+            text = "🖨️ Print Bridge (Arabic TSPL Supported)"
+            textSize = 22f
             setTextColor(Color.parseColor("#1e3c72"))
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 20)
         }
 
         statusText = TextView(this).apply {
-            text = "🟢 جاهز للاختبار أو استقبال الأوامر"
+            text = "🟢 جاهز للطباعة بالعربي والإنجليزي"
             textSize = 16f
             setTextColor(Color.parseColor("#27ae60"))
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 40)
         }
 
-        val labelTitle = TextView(this).apply { text = "1. طباعة الملصقات (EZD)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
-        val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود هنا..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
+        val labelTitle = TextView(this).apply { text = "اختبار ملصق عربي"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
+        val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestLabel = Button(this).apply {
-            text = "طباعة ملصق واحد 🏷️"
+            text = "طباعة ملصق عربي تجريبي 🏷️"
             setBackgroundColor(Color.parseColor("#8e44ad"))
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code, "Test Product", "100.00 EGP", false) else Toast.makeText(context, "اكتب الباركود", Toast.LENGTH_SHORT).show()
+                if (code.isNotEmpty()) printLabelTSPL(code, "أنجم جرين بنادول سوبر", "150.00 ج.م", false) 
+                else Toast.makeText(context, "اكتب الباركود أولاً", Toast.LENGTH_SHORT).show()
             }
         }
 
-        val receiptTitle = TextView(this).apply { text = "2. طباعة الفواتير (ESC)"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
+        val receiptTitle = TextView(this).apply { text = "اختبار الفواتير"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
         val receiptInput = EditText(this).apply { hint = "اختبار الفاتورة..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
@@ -91,7 +97,6 @@ class MainActivity : Activity() {
         scrollView.addView(layout)
         setContentView(scrollView)
         
-        // 3. التحقق مما إذا كان التطبيق فُتح عن طريق أمر من برنامج الصيدلية
         handlePrintIntent(intent)
     }
 
@@ -99,23 +104,13 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val permissions = mutableListOf<String>()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-                }
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                    permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-                }
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_SCAN)
             } else {
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
-                    permissions.add(Manifest.permission.BLUETOOTH)
-                }
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
-                    permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
-                }
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH)
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
             }
-            if (permissions.isNotEmpty()) {
-                requestPermissions(permissions.toTypedArray(), 1)
-            }
+            if (permissions.isNotEmpty()) requestPermissions(permissions.toTypedArray(), 1)
         }
     }
 
@@ -145,34 +140,71 @@ class MainActivity : Activity() {
         }
     }
 
-    // محرك الملصقات الجاهز والمعدل
+    // 🔥 المحرك السحري لطباعة العربي على طابعات الباركود TSPL عبر تحويل الرسوم
     private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
-        Toast.makeText(this, "جاري إرسال الملصق للطابعة...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "جاري طباعة الملصق العربي...", Toast.LENGTH_SHORT).show()
         Thread {
             try {
                 val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
                 if (printerConnection != null) {
                     printerConnection.connect()
-                    Thread.sleep(500) 
-                    
-                    val command = """
-                        SIZE 38 mm,25 mm
-                        GAP 2 mm,0 mm
-                        DIRECTION 1
-                        CLS
-                        ${if (prodName.isNotEmpty()) "TEXT 50,15,\"3\",0,1,1,\"$prodName\"" else ""}
-                        BARCODE 40,50,"128",60,0,0,2,2,"$barcode"
-                        TEXT 100,115,"2",0,1,1,"$barcode"
-                        ${if (prodPrice.isNotEmpty()) "TEXT 90,150,\"3\",0,1,1,\"$prodPrice\"" else ""}
-                        PRINT 1,1
-                        
-                    """.trimIndent().replace("\n", "\r\n")
-                    
-                    printerConnection.write(command.toByteArray())
+                    Thread.sleep(300) 
+
+                    // 1. رسم الملصق بالكامل باللغة العربية كـ Bitmap في الذاكرة
+                    val labelWidthPx = 304  // يعادل 38mm بدقة 203dpi
+                    val labelHeightPx = 200 // يعادل 25mm بدقة 203dpi
+                    val bitmap = Bitmap.createBitmap(labelWidthPx, labelHeightPx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    canvas.drawColor(Color.WHITE)
+
+                    // رسم الاسم العربي
+                    val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 24f
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    }
+                    val nameLayout = StaticLayout.Builder.obtain(prodName, 0, prodName.length, namePaint, labelWidthPx - 10)
+                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                        .setIncludePad(false)
+                        .build()
+
+                    canvas.save()
+                    canvas.translate(5f, 5f)
+                    nameLayout.draw(canvas)
+                    canvas.restore()
+
+                    // رسم السعر العربي
+                    val pricePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 26f
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    }
+                    val priceLayout = StaticLayout.Builder.obtain(prodPrice, 0, prodPrice.length, pricePaint, labelWidthPx - 10)
+                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                        .setIncludePad(false)
+                        .build()
+
+                    canvas.save()
+                    canvas.translate(5f, (labelHeightPx - priceLayout.height - 5).toFloat())
+                    priceLayout.draw(canvas)
+                    canvas.restore()
+
+                    // 2. تجهيز أوامر TSPL
+                    val headerCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\n"
+                    printerConnection.write(headerCommand.toByteArray())
+
+                    // إرسال صورة النص السفلية والعلوية
+                    val bmpBytes = bitmapToTsplBitmapCommand(bitmap, 0, 0)
+                    printerConnection.write(bmpBytes)
+
+                    // طباعة الباركود النصي في المنتصف
+                    val barcodeCommand = "BARCODE 30,55,\"128\",60,0,0,2,2,\"$barcode\"\r\nTEXT 100,120,\"2\",0,1,1,\"$barcode\"\r\nPRINT 1,1\r\n"
+                    printerConnection.write(barcodeCommand.toByteArray())
+
                     printerConnection.send() 
-                    Thread.sleep(2000)
+                    Thread.sleep(1500)
                     printerConnection.disconnect()
-                    runOnUiThread { Toast.makeText(this@MainActivity, "تم أمر الملصق", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "تمت طباعة الملصق بنجاح!", Toast.LENGTH_SHORT).show() }
                 } else {
                     runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
                 }
@@ -185,6 +217,43 @@ class MainActivity : Activity() {
                 }
             }
         }.start()
+    }
+
+    // دالة تحويل الصورة إلى أمر BITMAP المفهوم لطابعات TSPL
+    private fun bitmapToTsplBitmapCommand(bitmap: Bitmap, x: Int, y: Int): ByteArray {
+        val width = bitmap.width
+        val height = bitmap.height
+        val widthBytes = (width + 7) / 8
+        val stream = java.io.ByteArrayOutputStream()
+
+        val commandHead = "BITMAP $x,$y,$widthBytes,$height,0,"
+        stream.write(commandHead.toByteArray())
+
+        val imgData = ByteArray(widthBytes * height)
+        var byteIndex = 0
+
+        for (h in 0 until height) {
+            for (w in 0 until widthBytes) {
+                var b = 0
+                for (bit in 0 until 8) {
+                    val pxX = w * 8 + bit
+                    if (pxX < width) {
+                        val color = bitmap.getPixel(pxX, h)
+                        val r = Color.red(color)
+                        val g = Color.green(color)
+                        val blue = Color.blue(color)
+                        val luminance = (0.299 * r + 0.587 * g + 0.114 * blue).toInt()
+                        if (luminance < 128) {
+                            b = b or (1 shl (7 - bit))
+                        }
+                    }
+                }
+                imgData[byteIndex++] = b.toByte()
+            }
+        }
+        stream.write(imgData)
+        stream.write("\r\n".toByteArray())
+        return stream.toByteArray()
     }
 
     // محرك الفواتير
@@ -203,23 +272,24 @@ class MainActivity : Activity() {
                     socket.connect()
                     val out = socket.outputStream
                     
-                    val textPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-                    textPaint.color = android.graphics.Color.BLACK
-                    textPaint.textSize = 32f
-                    textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                    val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 32f
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    }
                     
-                    val formattedText = "\n\n$payloadText\n"
+                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
                     val printWidth = 576 
                     
-                    val staticLayout = android.text.StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
-                        .setAlignment(android.text.Layout.Alignment.ALIGN_CENTER)
+                    val staticLayout = StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
+                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
                         .setLineSpacing(0f, 1.2f)
                         .setIncludePad(false)
                         .build()
                         
-                    val bitmap = android.graphics.Bitmap.createBitmap(printWidth, staticLayout.height + 40, android.graphics.Bitmap.Config.ARGB_8888)
-                    val canvas = android.graphics.Canvas(bitmap)
-                    canvas.drawColor(android.graphics.Color.WHITE)
+                    val bitmap = Bitmap.createBitmap(printWidth, staticLayout.height + 40, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    canvas.drawColor(Color.WHITE)
                     canvas.translate(0f, 20f)
                     staticLayout.draw(canvas)
 
@@ -247,9 +317,9 @@ class MainActivity : Activity() {
                                 for (k in 0..7) {
                                     if (x + k < bmpWidth) {
                                         val color = bitmap.getPixel(x + k, offset + y)
-                                        val r = android.graphics.Color.red(color)
-                                        val g = android.graphics.Color.green(color)
-                                        val bColor = android.graphics.Color.blue(color)
+                                        val r = Color.red(color)
+                                        val g = Color.green(color)
+                                        val bColor = Color.blue(color)
                                         val luminance = (0.299 * r + 0.587 * g + 0.114 * bColor).toInt()
                                         if (luminance < 128) {
                                             b = b or (1 shl (7 - k))
@@ -265,9 +335,9 @@ class MainActivity : Activity() {
                     
                     out.write(byteArrayOf(0x1B, 0x64, 0x05))
                     out.flush()
-                    Thread.sleep(3000) 
+                    Thread.sleep(2000) 
                     socket.close()
-                    runOnUiThread { Toast.makeText(this@MainActivity, "تم طباعة الفاتورة", Toast.LENGTH_SHORT).show() }
+                    runOnUiThread { Toast.makeText(this@MainActivity, "تم طباعة الفاتورة بنجاح", Toast.LENGTH_SHORT).show() }
                 } else {
                     runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
                 }
