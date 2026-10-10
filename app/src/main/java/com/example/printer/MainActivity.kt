@@ -204,4 +204,4 @@ class MainActivity : Activity() {
         }
 
         if (!adapter.isEnabled) {
-            statusText.text = "⚠️ البلوتوث مغلق
+            statusText.text = "⚠️ البلوتوث مغلق! يرجى تشغيله"
