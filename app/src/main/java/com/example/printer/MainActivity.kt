@@ -23,10 +23,14 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.view.Gravity
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import java.util.UUID
@@ -34,8 +38,9 @@ import java.util.UUID
 class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
-    private lateinit var printerInfoText: TextView
+    private lateinit var printerSpinner: Spinner
     private lateinit var printerCardLayout: LinearLayout
+    private var pairedDevicesList = listOf<BluetoothDevice>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,18 +78,26 @@ class MainActivity : Activity() {
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#4A5568"))
             gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 15)
         }
 
-        printerInfoText = TextView(this).apply {
-            text = "اسم الطابعة: --"
-            textSize = 13f
-            setTextColor(Color.parseColor("#718096"))
-            gravity = Gravity.CENTER
-            setPadding(0, 10, 0, 0)
+        printerSpinner = Spinner(this).apply {
+            setPadding(10, 15, 10, 15)
+            background = createCardDrawable("#F7FAFC", "#CBD5E0")
+        }
+
+        printerSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (pairedDevicesList.isNotEmpty() && position < pairedDevicesList.size) {
+                    val selectedDevice = pairedDevicesList[position]
+                    saveSelectedPrinterMac(selectedDevice.address)
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         val btnRefresh = Button(this).apply {
-            text = "🔄 تحديث حالة الطابعة"
+            text = "🔄 تحديث الأجهزة المقترنة"
             textSize = 13f
             setTextColor(Color.WHITE)
             background = createButtonDrawable("#3182CE")
@@ -93,7 +106,7 @@ class MainActivity : Activity() {
         }
 
         printerCardLayout.addView(statusText)
-        printerCardLayout.addView(printerInfoText)
+        printerCardLayout.addView(printerSpinner)
         printerCardLayout.addView(LinearLayout(this).apply {
             setPadding(0, 20, 0, 0)
             gravity = Gravity.CENTER
@@ -143,7 +156,6 @@ class MainActivity : Activity() {
         receiptCard.addView(receiptInput)
         receiptCard.addView(btnTestReceipt)
 
-        // Assemble Layout
         mainLayout.addView(titleText)
         mainLayout.addView(printerCardLayout)
         mainLayout.addView(labelCard)
@@ -191,6 +203,19 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun saveSelectedPrinterMac(mac: String) {
+        val sharedPref = getSharedPreferences("PrintBridgePrefs", Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            putString("SELECTED_PRINTER_MAC", mac)
+            apply()
+        }
+    }
+
+    private fun getSavedPrinterMac(): String? {
+        val sharedPref = getSharedPreferences("PrintBridgePrefs", Context.MODE_PRIVATE)
+        return sharedPref.getString("SELECTED_PRINTER_MAC", null)
+    }
+
     @SuppressLint("MissingPermission")
     private fun updatePrinterStatusUI() {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -199,26 +224,41 @@ class MainActivity : Activity() {
         if (adapter == null) {
             statusText.text = "🔴 البلوتوث غير مدعوم على هذا الجهاز!"
             statusText.setTextColor(Color.parseColor("#E53E3E"))
-            printerInfoText.text = "الحالة: خطأ في العتاد"
+            printerSpinner.visibility = View.GONE
             return
         }
 
         if (!adapter.isEnabled) {
-            statusText.text = "⚠️ البلوتوث مغلق! يرجى تشغيله"
+            statusText.text = "⚠️ البلوتوث مغلق! يرجى تشغيله ثم التحديث"
             statusText.setTextColor(Color.parseColor("#DD6B20"))
-            printerInfoText.text = "يرجى تفعيل البلوتوث واختيار طابعة مقترنة"
+            printerSpinner.visibility = View.GONE
             return
         }
 
-        val device = adapter.bondedDevices?.firstOrNull()
-        if (device != null) {
-            statusText.text = "🟢 جاهز للطباعة"
+        pairedDevicesList = adapter.bondedDevices?.toList() ?: emptyList()
+        
+        if (pairedDevicesList.isNotEmpty()) {
+            statusText.text = "🟢 اختر الطابعة من القائمة:"
             statusText.setTextColor(Color.parseColor("#38A169"))
-            printerInfoText.text = "الطابعة المقترنة: ${device.name} (${device.address})"
+            printerSpinner.visibility = View.VISIBLE
+
+            val deviceNames = pairedDevicesList.map { "${it.name}\n(${it.address})" }
+            val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, deviceNames)
+            spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            printerSpinner.adapter = spinnerAdapter
+
+            // تحديد الطابعة المحفوظة مسبقاً إن وجدت
+            val savedMac = getSavedPrinterMac()
+            if (savedMac != null) {
+                val savedIndex = pairedDevicesList.indexOfFirst { it.address == savedMac }
+                if (savedIndex >= 0) {
+                    printerSpinner.setSelection(savedIndex)
+                }
+            }
         } else {
-            statusText.text = "🔴 لم يتم العثور على أي طابعة مقترنة!"
+            statusText.text = "🔴 لم يتم العثور على أي أجهزة مقترنة!"
             statusText.setTextColor(Color.parseColor("#E53E3E"))
-            printerInfoText.text = "اقترن بطابعة من إعدادات البلوتوث أولاً"
+            printerSpinner.visibility = View.GONE
         }
     }
 
@@ -287,20 +327,25 @@ class MainActivity : Activity() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun getFirstPairedPrinter(): BluetoothDevice? {
+    private fun getSelectedPrinter(): BluetoothDevice? {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val adapter = bluetoothManager.adapter
         if (adapter == null || !adapter.isEnabled) return null
-        return adapter.bondedDevices?.firstOrNull()
+        
+        val bondedDevices = adapter.bondedDevices ?: return null
+        val savedMac = getSavedPrinterMac()
+        
+        // البحث عن الطابعة المحددة مسبقاً، وإلا اختيار أول جهاز كبديل
+        return bondedDevices.find { it.address == savedMac } ?: bondedDevices.firstOrNull()
     }
 
     @SuppressLint("MissingPermission")
     private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
-        showToast("⏳ جاري إرسال الملصق العربي للطابعة...")
+        showToast("⏳ جاري إرسال الملصق...")
         Thread {
             var socket: BluetoothSocket? = null
             try {
-                val device = getFirstPairedPrinter()
+                val device = getSelectedPrinter()
                 if (device != null) {
                     socket = connectDirectToDevice(device)
                     val out = socket.outputStream
@@ -354,11 +399,11 @@ class MainActivity : Activity() {
                     Thread.sleep(1000)
                     showToast("✅ تمت طباعة الملصق بنجاح!")
                 } else {
-                    showToast("❌ لم يتم العثور على طابعة مقترنة!")
+                    showToast("❌ يرجى تحديد الطابعة من القائمة أولاً!")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                showToast("❌ خطأ بالاتصال: تأكد من تشغيل الطابعة")
+                showToast("❌ خطأ بالاتصال: تأكد من تشغيل الطابعة المحددة")
             } finally {
                 try { socket?.close() } catch (ignored: Exception) {}
                 if (autoClose) {
@@ -409,11 +454,11 @@ class MainActivity : Activity() {
 
     @SuppressLint("MissingPermission")
     private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
-        showToast("⏳ جاري إرسال الفاتورة للطابعة...")
+        showToast("⏳ جاري إرسال الفاتورة...")
         Thread {
             var socket: BluetoothSocket? = null
             try {
-                val device = getFirstPairedPrinter()
+                val device = getSelectedPrinter()
 
                 if (device != null) {
                     socket = connectDirectToDevice(device)
@@ -425,7 +470,7 @@ class MainActivity : Activity() {
                         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                     }
 
-                    val formattedText = "\n\n$payloadText\n"
+                    val formattedText = "\n$payloadText\n"
                     val printWidth = 576
 
                     val staticLayout = StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
@@ -485,11 +530,11 @@ class MainActivity : Activity() {
                     Thread.sleep(1500)
                     showToast("✅ تم طباعة الفاتورة بنجاح!")
                 } else {
-                    showToast("❌ لم يتم العثور على طابعة مقترنة!")
+                    showToast("❌ يرجى تحديد الطابعة من القائمة أولاً!")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                showToast("❌ خطأ بالاتصال: تأكد من تشغيل الطابعة")
+                showToast("❌ خطأ بالاتصال: تأكد من تشغيل الطابعة المحددة")
             } finally {
                 try { socket?.close() } catch (ignored: Exception) {}
                 if (autoClose) {
