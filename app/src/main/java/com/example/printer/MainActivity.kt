@@ -3,7 +3,10 @@ package com.example.printer
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -25,7 +28,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import com.dantsu.escposprinter.connection.bluetooth.BluetoothPrintersConnections
 import java.util.UUID
 
 class MainActivity : Activity() {
@@ -140,38 +142,55 @@ class MainActivity : Activity() {
         }
     }
 
-    // دالة مرنة لإنشاء اتصال مقبس بلوتوث قوي يتجاوز قيود أندرويد الحديثة
+    // دالة فتح المقبس القوية المتوافقة مع أندرويد الحديث
     @SuppressLint("MissingPermission")
-    private fun createBluetoothSocket(device: android.bluetooth.BluetoothDevice): android.bluetooth.BluetoothSocket {
+    private fun connectDirectToDevice(device: BluetoothDevice): BluetoothSocket {
         val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        bluetoothAdapter?.cancelDiscovery() // إيقاف البحث لعدم إشعال خطأ المقبس
+
         return try {
-            device.createRfcommSocketToServiceRecord(uuid)
-        } catch (e: Exception) {
+            val socket = device.createInsecureRfcommSocketToServiceRecord(uuid)
+            socket.connect()
+            socket
+        } catch (e1: Exception) {
             try {
-                device.createInsecureRfcommSocketToServiceRecord(uuid)
+                val socket = device.createRfcommSocketToServiceRecord(uuid)
+                socket.connect()
+                socket
             } catch (e2: Exception) {
-                val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                m.invoke(device, 1) as android.bluetooth.BluetoothSocket
+                val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                val socket = method.invoke(device, 1) as BluetoothSocket
+                socket.connect()
+                socket
             }
         }
     }
 
+    @SuppressLint("MissingPermission")
+    private fun getFirstPairedPrinter(): BluetoothDevice? {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter = bluetoothManager.adapter
+        return adapter?.bondedDevices?.firstOrNull()
+    }
+
+    @SuppressLint("MissingPermission")
     private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري طباعة الملصق العربي...", Toast.LENGTH_SHORT).show()
         Thread {
+            var socket: BluetoothSocket? = null
             try {
-                val printerConnection = BluetoothPrintersConnections.selectFirstPaired()
-                if (printerConnection != null) {
-                    printerConnection.connect()
-                    Thread.sleep(300) 
+                val device = getFirstPairedPrinter()
+                if (device != null) {
+                    socket = connectDirectToDevice(device)
+                    val out = socket.outputStream
 
-                    val labelWidthPx = 304  // 38mm بدقة 203dpi
-                    val labelHeightPx = 200 // 25mm بدقة 203dpi
+                    val labelWidthPx = 304  // 38mm
+                    val labelHeightPx = 200 // 25mm
                     val bitmap = Bitmap.createBitmap(labelWidthPx, labelHeightPx, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
                     canvas.drawColor(Color.WHITE)
 
-                    // رسم الاسم العربي
                     val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.BLACK
                         textSize = 24f
@@ -187,7 +206,6 @@ class MainActivity : Activity() {
                     nameLayout.draw(canvas)
                     canvas.restore()
 
-                    // رسم السعر العربي
                     val pricePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.BLACK
                         textSize = 26f
@@ -204,17 +222,16 @@ class MainActivity : Activity() {
                     canvas.restore()
 
                     val headerCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\n"
-                    printerConnection.write(headerCommand.toByteArray())
+                    out.write(headerCommand.toByteArray())
 
                     val bmpBytes = bitmapToTsplBitmapCommand(bitmap, 0, 0)
-                    printerConnection.write(bmpBytes)
+                    out.write(bmpBytes)
 
                     val barcodeCommand = "BARCODE 30,55,\"128\",60,0,0,2,2,\"$barcode\"\r\nTEXT 100,120,\"2\",0,1,1,\"$barcode\"\r\nPRINT 1,1\r\n"
-                    printerConnection.write(barcodeCommand.toByteArray())
+                    out.write(barcodeCommand.toByteArray())
 
-                    printerConnection.send() 
-                    Thread.sleep(1500)
-                    printerConnection.disconnect()
+                    out.flush()
+                    Thread.sleep(1000)
                     runOnUiThread { Toast.makeText(this@MainActivity, "تمت طباعة الملصق بنجاح!", Toast.LENGTH_SHORT).show() }
                 } else {
                     runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
@@ -223,6 +240,7 @@ class MainActivity : Activity() {
                 e.printStackTrace()
                 runOnUiThread { Toast.makeText(this@MainActivity, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             } finally {
+                try { socket?.close() } catch (ignored: Exception) {}
                 if (autoClose) {
                     runOnUiThread { finish() }
                 }
@@ -273,14 +291,12 @@ class MainActivity : Activity() {
     private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري إرسال الفاتورة للطابعة...", Toast.LENGTH_SHORT).show()
         Thread {
+            var socket: BluetoothSocket? = null
             try {
-                val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-                val adapter = bluetoothManager.adapter
-                val device = adapter?.bondedDevices?.firstOrNull() 
+                val device = getFirstPairedPrinter()
                 
                 if (device != null) {
-                    val socket = createBluetoothSocket(device)
-                    socket.connect()
+                    socket = connectDirectToDevice(device)
                     val out = socket.outputStream
                     
                     val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -346,8 +362,7 @@ class MainActivity : Activity() {
                     
                     out.write(byteArrayOf(0x1B, 0x64, 0x05))
                     out.flush()
-                    Thread.sleep(2000) 
-                    socket.close()
+                    Thread.sleep(1500) 
                     runOnUiThread { Toast.makeText(this@MainActivity, "تم طباعة الفاتورة بنجاح", Toast.LENGTH_SHORT).show() }
                 } else {
                     runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
@@ -356,6 +371,7 @@ class MainActivity : Activity() {
                 e.printStackTrace()
                 runOnUiThread { Toast.makeText(this@MainActivity, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
             } finally {
+                try { socket?.close() } catch (ignored: Exception) {}
                 if (autoClose) {
                     runOnUiThread { finish() }
                 }
