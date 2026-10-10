@@ -140,6 +140,22 @@ class MainActivity : Activity() {
         }
     }
 
+    // دالة مرنة لإنشاء اتصال مقبس بلوتوث قوي يتجاوز قيود أندرويد الحديثة
+    @SuppressLint("MissingPermission")
+    private fun createBluetoothSocket(device: android.bluetooth.BluetoothDevice): android.bluetooth.BluetoothSocket {
+        val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        return try {
+            device.createRfcommSocketToServiceRecord(uuid)
+        } catch (e: Exception) {
+            try {
+                device.createInsecureRfcommSocketToServiceRecord(uuid)
+            } catch (e2: Exception) {
+                val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                m.invoke(device, 1) as android.bluetooth.BluetoothSocket
+            }
+        }
+    }
+
     private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
         Toast.makeText(this, "جاري طباعة الملصق العربي...", Toast.LENGTH_SHORT).show()
         Thread {
@@ -149,8 +165,8 @@ class MainActivity : Activity() {
                     printerConnection.connect()
                     Thread.sleep(300) 
 
-                    val labelWidthPx = 304  // يعادل 38mm بدقة 203dpi
-                    val labelHeightPx = 200 // يعادل 25mm بدقة 203dpi
+                    val labelWidthPx = 304  // 38mm بدقة 203dpi
+                    val labelHeightPx = 200 // 25mm بدقة 203dpi
                     val bitmap = Bitmap.createBitmap(labelWidthPx, labelHeightPx, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
                     canvas.drawColor(Color.WHITE)
@@ -238,7 +254,6 @@ class MainActivity : Activity() {
                         val blue = Color.blue(color)
                         val luminance = (0.299 * r + 0.587 * g + 0.114 * blue).toInt()
                         
-                        // تصحيح الألوان: جعل الخلفية بيضاء والنص أسود
                         if (luminance >= 128) {
                             b = b or (1 shl (7 - bit))
                         }
@@ -264,8 +279,7 @@ class MainActivity : Activity() {
                 val device = adapter?.bondedDevices?.firstOrNull() 
                 
                 if (device != null) {
-                    val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-                    val socket = device.createRfcommSocketToServiceRecord(uuid)
+                    val socket = createBluetoothSocket(device)
                     socket.connect()
                     val out = socket.outputStream
                     
@@ -275,7 +289,7 @@ class MainActivity : Activity() {
                         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                     }
                     
-                    val formattedText = "\n$payloadText\n"
+                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
                     val printWidth = 576 
                     
                     val staticLayout = StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
