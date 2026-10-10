@@ -205,3 +205,303 @@ class MainActivity : Activity() {
 
         if (!adapter.isEnabled) {
             statusText.text = "⚠️ البلوتوث مغلق! يرجى تشغيله"
+            statusText.setTextColor(Color.parseColor("#DD6B20"))
+            printerInfoText.text = "يرجى تفعيل البلوتوث واختيار طابعة مقترنة"
+            return
+        }
+
+        val device = adapter.bondedDevices?.firstOrNull()
+        if (device != null) {
+            statusText.text = "🟢 جاهز للطباعة"
+            statusText.setTextColor(Color.parseColor("#38A169"))
+            printerInfoText.text = "الطابعة المقترنة: ${device.name} (${device.address})"
+        } else {
+            statusText.text = "🔴 لم يتم العثور على أي طابعة مقترنة!"
+            statusText.setTextColor(Color.parseColor("#E53E3E"))
+            printerInfoText.text = "اقترن بطابعة من إعدادات البلوتوث أولاً"
+        }
+    }
+
+    private fun requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val permissions = mutableListOf<String>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            } else {
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH)
+                if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
+            }
+            if (permissions.isNotEmpty()) requestPermissions(permissions.toTypedArray(), 1)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePrintIntent(intent)
+    }
+
+    private fun handlePrintIntent(intent: Intent?) {
+        if (intent == null || intent.data == null) return
+        val data: Uri = intent.data!!
+
+        if (data.scheme == "printbridge") {
+            moveTaskToBack(true)
+
+            val type = data.getQueryParameter("type")
+            if (type == "label") {
+                val barcode = data.getQueryParameter("barcode") ?: "0000"
+                val name = data.getQueryParameter("name") ?: ""
+                val price = data.getQueryParameter("price") ?: ""
+                printLabelTSPL(barcode, name, price, true)
+            } else {
+                val text = data.getQueryParameter("text") ?: "TEST RECEIPT"
+                printReceiptDirect(text, true)
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun connectDirectToDevice(device: BluetoothDevice): BluetoothSocket {
+        val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        bluetoothAdapter?.cancelDiscovery()
+
+        return try {
+            val socket = device.createInsecureRfcommSocketToServiceRecord(uuid)
+            socket.connect()
+            socket
+        } catch (e1: Exception) {
+            try {
+                val socket = device.createRfcommSocketToServiceRecord(uuid)
+                socket.connect()
+                socket
+            } catch (e2: Exception) {
+                val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                val socket = method.invoke(device, 1) as BluetoothSocket
+                socket.connect()
+                socket
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun getFirstPairedPrinter(): BluetoothDevice? {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter = bluetoothManager.adapter
+        if (adapter == null || !adapter.isEnabled) return null
+        return adapter.bondedDevices?.firstOrNull()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
+        showToast("⏳ جاري إرسال الملصق العربي للطابعة...")
+        Thread {
+            var socket: BluetoothSocket? = null
+            try {
+                val device = getFirstPairedPrinter()
+                if (device != null) {
+                    socket = connectDirectToDevice(device)
+                    val out = socket.outputStream
+
+                    val labelWidthPx = 304
+                    val labelHeightPx = 200
+                    val bitmap = Bitmap.createBitmap(labelWidthPx, labelHeightPx, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    canvas.drawColor(Color.WHITE)
+
+                    val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 24f
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    }
+                    val nameLayout = StaticLayout.Builder.obtain(prodName, 0, prodName.length, namePaint, labelWidthPx - 10)
+                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                        .setIncludePad(false)
+                        .build()
+
+                    canvas.save()
+                    canvas.translate(5f, 5f)
+                    nameLayout.draw(canvas)
+                    canvas.restore()
+
+                    val pricePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 26f
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    }
+                    val priceLayout = StaticLayout.Builder.obtain(prodPrice, 0, prodPrice.length, pricePaint, labelWidthPx - 10)
+                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                        .setIncludePad(false)
+                        .build()
+
+                    canvas.save()
+                    canvas.translate(5f, (labelHeightPx - priceLayout.height - 5).toFloat())
+                    priceLayout.draw(canvas)
+                    canvas.restore()
+
+                    val headerCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\n"
+                    out.write(headerCommand.toByteArray())
+
+                    val bmpBytes = bitmapToTsplBitmapCommand(bitmap, 0, 0)
+                    out.write(bmpBytes)
+
+                    val barcodeCommand = "BARCODE 30,55,\"128\",60,0,0,2,2,\"$barcode\"\r\nTEXT 100,120,\"2\",0,1,1,\"$barcode\"\r\nPRINT 1,1\r\n"
+                    out.write(barcodeCommand.toByteArray())
+
+                    out.flush()
+                    Thread.sleep(1000)
+                    showToast("✅ تمت طباعة الملصق بنجاح!")
+                } else {
+                    showToast("❌ لم يتم العثور على طابعة مقترنة!")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                showToast("❌ خطأ بالاتصال: تأكد من تشغيل الطابعة")
+            } finally {
+                try { socket?.close() } catch (ignored: Exception) {}
+                if (autoClose) {
+                    runOnUiThread { finish() }
+                }
+            }
+        }.start()
+    }
+
+    private fun bitmapToTsplBitmapCommand(bitmap: Bitmap, x: Int, y: Int): ByteArray {
+        val width = bitmap.width
+        val height = bitmap.height
+        val widthBytes = (width + 7) / 8
+        val stream = java.io.ByteArrayOutputStream()
+
+        val commandHead = "BITMAP $x,$y,$widthBytes,$height,0,"
+        stream.write(commandHead.toByteArray())
+
+        val imgData = ByteArray(widthBytes * height)
+        var byteIndex = 0
+
+        for (h in 0 until height) {
+            for (w in 0 until widthBytes) {
+                var b = 0
+                for (bit in 0 until 8) {
+                    val pxX = w * 8 + bit
+                    if (pxX < width) {
+                        val color = bitmap.getPixel(pxX, h)
+                        val r = Color.red(color)
+                        val g = Color.green(color)
+                        val blue = Color.blue(color)
+                        val luminance = (0.299 * r + 0.587 * g + 0.114 * blue).toInt()
+
+                        if (luminance >= 128) {
+                            b = b or (1 shl (7 - bit))
+                        }
+                    } else {
+                        b = b or (1 shl (7 - bit))
+                    }
+                }
+                imgData[byteIndex++] = b.toByte()
+            }
+        }
+        stream.write(imgData)
+        stream.write("\r\n".toByteArray())
+        return stream.toByteArray()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
+        showToast("⏳ جاري إرسال الفاتورة للطابعة...")
+        Thread {
+            var socket: BluetoothSocket? = null
+            try {
+                val device = getFirstPairedPrinter()
+
+                if (device != null) {
+                    socket = connectDirectToDevice(device)
+                    val out = socket.outputStream
+
+                    val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 32f
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    }
+
+                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
+                    val printWidth = 576
+
+                    val staticLayout = StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
+                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                        .setLineSpacing(0f, 1.2f)
+                        .setIncludePad(false)
+                        .build()
+
+                    val bitmap = Bitmap.createBitmap(printWidth, staticLayout.height + 40, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    canvas.drawColor(Color.WHITE)
+                    canvas.translate(0f, 20f)
+                    staticLayout.draw(canvas)
+
+                    out.write(byteArrayOf(0x1B, 0x40))
+
+                    val bmpWidth = bitmap.width
+                    val bmpHeight = bitmap.height
+                    var offset = 0
+
+                    while (offset < bmpHeight) {
+                        val chunkHeight = if (bmpHeight - offset > 255) 255 else bmpHeight - offset
+                        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
+                        val xL = (bmpWidth / 8) % 256
+                        val xH = (bmpWidth / 8) / 256
+                        out.write(byteArrayOf(xL.toByte(), xH.toByte()))
+                        val yL = chunkHeight % 256
+                        val yH = chunkHeight / 256
+                        out.write(byteArrayOf(yL.toByte(), yH.toByte()))
+
+                        val rowBytes = ByteArray((bmpWidth / 8) * chunkHeight)
+                        var index = 0
+                        for (y in 0 until chunkHeight) {
+                            for (x in 0 until bmpWidth step 8) {
+                                var b = 0
+                                for (k in 0..7) {
+                                    if (x + k < bmpWidth) {
+                                        val color = bitmap.getPixel(x + k, offset + y)
+                                        val r = Color.red(color)
+                                        val g = Color.green(color)
+                                        val bColor = Color.blue(color)
+                                        val luminance = (0.299 * r + 0.587 * g + 0.114 * bColor).toInt()
+                                        if (luminance < 128) {
+                                            b = b or (1 shl (7 - k))
+                                        }
+                                    }
+                                }
+                                rowBytes[index++] = b.toByte()
+                            }
+                        }
+                        out.write(rowBytes)
+                        offset += chunkHeight
+                    }
+
+                    out.write(byteArrayOf(0x1B, 0x64, 0x05))
+                    out.flush()
+                    Thread.sleep(1500)
+                    showToast("✅ تم طباعة الفاتورة بنجاح!")
+                } else {
+                    showToast("❌ لم يتم العثور على طابعة مقترنة!")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                showToast("❌ خطأ بالاتصال: تأكد من تشغيل الطابعة")
+            } finally {
+                try { socket?.close() } catch (ignored: Exception) {}
+                if (autoClose) {
+                    runOnUiThread { finish() }
+                }
+            }
+        }.start()
+    }
+
+    private fun showToast(msg: String) {
+        runOnUiThread {
+            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+        }
+    }
+}
