@@ -15,6 +15,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -33,6 +34,8 @@ import java.util.UUID
 class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
+    private lateinit var printerInfoText: TextView
+    private lateinit var printerCardLayout: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,342 +43,165 @@ class MainActivity : Activity() {
         requestBluetoothPermissions()
 
         val scrollView = ScrollView(this)
-        val layout = LinearLayout(this).apply {
+        val mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(40, 60, 40, 60)
-            setBackgroundColor(Color.parseColor("#f0f4f8"))
+            setPadding(40, 50, 40, 50)
+            setBackgroundColor(Color.parseColor("#F4F6F9"))
         }
 
+        // Header Title
         val titleText = TextView(this).apply {
-            text = "🖨️ Print Bridge"
-            textSize = 22f
-            setTextColor(Color.parseColor("#1e3c72"))
+            text = "🖨️ Print Bridge Pro"
+            textSize = 24f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#1E3C72"))
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 20)
         }
 
-        statusText = TextView(this).apply {
-            text = "🟢 جاهز للطباعة بالعربي والإنجليزي"
-            textSize = 16f
-            setTextColor(Color.parseColor("#27ae60"))
+        // Status Card
+        printerCardLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(35, 35, 35, 35)
+            background = createCardDrawable("#FFFFFF", "#E2E8F0")
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 40)
         }
 
-        val labelTitle = TextView(this).apply { text = "اختبار ملصق عربي"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 20, 0, 10) }
-        val labelInput = EditText(this).apply { hint = "اكتب رقم الباركود..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
-        val btnTestLabel = Button(this).apply {
-            text = "طباعة ملصق عربي تجريبي 🏷️"
-            setBackgroundColor(Color.parseColor("#8e44ad"))
+        statusText = TextView(this).apply {
+            text = "🔍 جاري فحص حالة البلوتوث والطابعة..."
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#4A5568"))
+            gravity = Gravity.CENTER
+        }
+
+        printerInfoText = TextView(this).apply {
+            text = "اسم الطابعة: --"
+            textSize = 13f
+            setTextColor(Color.parseColor("#718096"))
+            gravity = Gravity.CENTER
+            setPadding(0, 10, 0, 0)
+        }
+
+        val btnRefresh = Button(this).apply {
+            text = "🔄 تحديث حالة الطابعة"
+            textSize = 13f
             setTextColor(Color.WHITE)
+            background = createButtonDrawable("#3182CE")
+            setPadding(20, 10, 20, 10)
+            setOnClickListener { updatePrinterStatusUI() }
+        }
+
+        printerCardLayout.addView(statusText)
+        printerCardLayout.addView(printerInfoText)
+        printerCardLayout.addView(LinearLayout(this).apply {
+            setPadding(0, 20, 0, 0)
+            gravity = Gravity.CENTER
+            addView(btnRefresh)
+        })
+
+        // Section: Label Test
+        val labelCard = createSectionCard("🏷️ اختبار طباعة الملصقات (TSPL)")
+        val labelInput = EditText(this).apply {
+            hint = "أدخل رقم الباركود للتجربة..."
+            textSize = 15f
+            setBackgroundColor(Color.WHITE)
+            setPadding(25, 20, 25, 20)
+        }
+        val btnTestLabel = Button(this).apply {
+            text = "طباعة ملصق تجريبي بالعربي 🖨️"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            background = createButtonDrawable("#8E44AD")
             setOnClickListener {
                 val code = labelInput.text.toString()
-                if (code.isNotEmpty()) printLabelTSPL(code, "أنجم جرين بنادول سوبر", "150.00 ج.م", false) 
-                else Toast.makeText(context, "اكتب الباركود أولاً", Toast.LENGTH_SHORT).show()
+                if (code.isNotEmpty()) printLabelTSPL(code, "أنجم جرين بنادول سوبر", "150.00 ج.م", false)
+                else showToast("⚠️ يرجى كتابة رقم الباركود أولاً")
             }
         }
+        labelCard.addView(labelInput)
+        labelCard.addView(btnTestLabel)
 
-        val receiptTitle = TextView(this).apply { text = "اختبار الفواتير"; setTextColor(Color.BLACK); textSize = 16f; setPadding(0, 40, 0, 10) }
-        val receiptInput = EditText(this).apply { hint = "اختبار الفاتورة..."; textSize = 16f; setBackgroundColor(Color.WHITE); setPadding(20, 20, 20, 20) }
+        // Section: Receipt Test
+        val receiptCard = createSectionCard("🧾 اختبار طباعة الفواتير (Thermal)")
+        val receiptInput = EditText(this).apply {
+            hint = "أدخل نص التجربة للفاتورة..."
+            textSize = 15f
+            setBackgroundColor(Color.WHITE)
+            setPadding(25, 20, 25, 20)
+        }
         val btnTestReceipt = Button(this).apply {
             text = "طباعة فاتورة تجريبية 🧾"
-            setBackgroundColor(Color.parseColor("#3498db"))
+            textSize = 15f
             setTextColor(Color.WHITE)
+            background = createButtonDrawable("#2980B9")
             setOnClickListener {
                 val txt = receiptInput.text.toString()
-                printReceiptDirect(if (txt.isNotEmpty()) txt else "اختبار الفاتورة\nشغال ممتاز!", false)
+                printReceiptDirect(if (txt.isNotEmpty()) txt else "اختبار الفاتورة\nالطباعة شغالة ممتاز!", false)
             }
         }
+        receiptCard.addView(receiptInput)
+        receiptCard.addView(btnTestReceipt)
 
-        layout.addView(titleText)
-        layout.addView(statusText)
-        layout.addView(labelTitle)
-        layout.addView(labelInput)
-        layout.addView(btnTestLabel)
-        layout.addView(receiptTitle)
-        layout.addView(receiptInput)
-        layout.addView(btnTestReceipt)
-        
-        scrollView.addView(layout)
+        // Assemble Layout
+        mainLayout.addView(titleText)
+        mainLayout.addView(printerCardLayout)
+        mainLayout.addView(labelCard)
+        mainLayout.addView(receiptCard)
+
+        scrollView.addView(mainLayout)
         setContentView(scrollView)
-        
+
+        updatePrinterStatusUI()
         handlePrintIntent(intent)
     }
 
-    private fun requestBluetoothPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val permissions = mutableListOf<String>()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            } else {
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH)
-                if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
-            }
-            if (permissions.isNotEmpty()) requestPermissions(permissions.toTypedArray(), 1)
+    private fun createSectionCard(title: String): LinearLayout {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(35, 30, 35, 30)
+            background = createCardDrawable("#FFFFFF", "#E2E8F0")
+            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            params.setMargins(0, 30, 0, 0)
+            layoutParams = params
+        }
+        val titleTv = TextView(this).apply {
+            text = title
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#2D3748"))
+            setPadding(0, 0, 0, 20)
+        }
+        card.addView(titleTv)
+        return card
+    }
+
+    private fun createCardDrawable(bgColor: String, strokeColor: String): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgColor))
+            setStroke(3, Color.parseColor(strokeColor))
+            cornerRadius = 20f
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handlePrintIntent(intent)
-    }
-
-    private fun handlePrintIntent(intent: Intent?) {
-        if (intent == null || intent.data == null) return
-        val data: Uri = intent.data!!
-        
-        if (data.scheme == "printbridge") {
-            moveTaskToBack(true)
-            
-            val type = data.getQueryParameter("type")
-            if (type == "label") {
-                val barcode = data.getQueryParameter("barcode") ?: "0000"
-                val name = data.getQueryParameter("name") ?: ""
-                val price = data.getQueryParameter("price") ?: ""
-                printLabelTSPL(barcode, name, price, true) 
-            } else {
-                val text = data.getQueryParameter("text") ?: "TEST RECEIPT"
-                printReceiptDirect(text, true) 
-            }
-        }
-    }
-
-    // دالة فتح المقبس القوية المتوافقة مع أندرويد الحديث
-    @SuppressLint("MissingPermission")
-    private fun connectDirectToDevice(device: BluetoothDevice): BluetoothSocket {
-        val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        bluetoothAdapter?.cancelDiscovery() // إيقاف البحث لعدم إشعال خطأ المقبس
-
-        return try {
-            val socket = device.createInsecureRfcommSocketToServiceRecord(uuid)
-            socket.connect()
-            socket
-        } catch (e1: Exception) {
-            try {
-                val socket = device.createRfcommSocketToServiceRecord(uuid)
-                socket.connect()
-                socket
-            } catch (e2: Exception) {
-                val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                val socket = method.invoke(device, 1) as BluetoothSocket
-                socket.connect()
-                socket
-            }
+    private fun createButtonDrawable(bgColor: String): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgColor))
+            cornerRadius = 15f
         }
     }
 
     @SuppressLint("MissingPermission")
-    private fun getFirstPairedPrinter(): BluetoothDevice? {
+    private fun updatePrinterStatusUI() {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val adapter = bluetoothManager.adapter
-        return adapter?.bondedDevices?.firstOrNull()
-    }
 
-    @SuppressLint("MissingPermission")
-    private fun printLabelTSPL(barcode: String, prodName: String, prodPrice: String, autoClose: Boolean) {
-        Toast.makeText(this, "جاري طباعة الملصق العربي...", Toast.LENGTH_SHORT).show()
-        Thread {
-            var socket: BluetoothSocket? = null
-            try {
-                val device = getFirstPairedPrinter()
-                if (device != null) {
-                    socket = connectDirectToDevice(device)
-                    val out = socket.outputStream
-
-                    val labelWidthPx = 304  // 38mm
-                    val labelHeightPx = 200 // 25mm
-                    val bitmap = Bitmap.createBitmap(labelWidthPx, labelHeightPx, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bitmap)
-                    canvas.drawColor(Color.WHITE)
-
-                    val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.BLACK
-                        textSize = 24f
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                    }
-                    val nameLayout = StaticLayout.Builder.obtain(prodName, 0, prodName.length, namePaint, labelWidthPx - 10)
-                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                        .setIncludePad(false)
-                        .build()
-
-                    canvas.save()
-                    canvas.translate(5f, 5f)
-                    nameLayout.draw(canvas)
-                    canvas.restore()
-
-                    val pricePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.BLACK
-                        textSize = 26f
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                    }
-                    val priceLayout = StaticLayout.Builder.obtain(prodPrice, 0, prodPrice.length, pricePaint, labelWidthPx - 10)
-                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                        .setIncludePad(false)
-                        .build()
-
-                    canvas.save()
-                    canvas.translate(5f, (labelHeightPx - priceLayout.height - 5).toFloat())
-                    priceLayout.draw(canvas)
-                    canvas.restore()
-
-                    val headerCommand = "SIZE 38 mm,25 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\n"
-                    out.write(headerCommand.toByteArray())
-
-                    val bmpBytes = bitmapToTsplBitmapCommand(bitmap, 0, 0)
-                    out.write(bmpBytes)
-
-                    val barcodeCommand = "BARCODE 30,55,\"128\",60,0,0,2,2,\"$barcode\"\r\nTEXT 100,120,\"2\",0,1,1,\"$barcode\"\r\nPRINT 1,1\r\n"
-                    out.write(barcodeCommand.toByteArray())
-
-                    out.flush()
-                    Thread.sleep(1000)
-                    runOnUiThread { Toast.makeText(this@MainActivity, "تمت طباعة الملصق بنجاح!", Toast.LENGTH_SHORT).show() }
-                } else {
-                    runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                runOnUiThread { Toast.makeText(this@MainActivity, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
-            } finally {
-                try { socket?.close() } catch (ignored: Exception) {}
-                if (autoClose) {
-                    runOnUiThread { finish() }
-                }
-            }
-        }.start()
-    }
-
-    private fun bitmapToTsplBitmapCommand(bitmap: Bitmap, x: Int, y: Int): ByteArray {
-        val width = bitmap.width
-        val height = bitmap.height
-        val widthBytes = (width + 7) / 8
-        val stream = java.io.ByteArrayOutputStream()
-
-        val commandHead = "BITMAP $x,$y,$widthBytes,$height,0,"
-        stream.write(commandHead.toByteArray())
-
-        val imgData = ByteArray(widthBytes * height)
-        var byteIndex = 0
-
-        for (h in 0 until height) {
-            for (w in 0 until widthBytes) {
-                var b = 0
-                for (bit in 0 until 8) {
-                    val pxX = w * 8 + bit
-                    if (pxX < width) {
-                        val color = bitmap.getPixel(pxX, h)
-                        val r = Color.red(color)
-                        val g = Color.green(color)
-                        val blue = Color.blue(color)
-                        val luminance = (0.299 * r + 0.587 * g + 0.114 * blue).toInt()
-                        
-                        if (luminance >= 128) {
-                            b = b or (1 shl (7 - bit))
-                        }
-                    } else {
-                        b = b or (1 shl (7 - bit))
-                    }
-                }
-                imgData[byteIndex++] = b.toByte()
-            }
+        if (adapter == null) {
+            statusText.text = "🔴 البلوتوث غير مدعوم على هذا الجهاز!"
+            statusText.setTextColor(Color.parseColor("#E53E3E"))
+            printerInfoText.text = "الحالة: خطأ في العتاد"
+            return
         }
-        stream.write(imgData)
-        stream.write("\r\n".toByteArray())
-        return stream.toByteArray()
-    }
 
-    @SuppressLint("MissingPermission")
-    private fun printReceiptDirect(payloadText: String, autoClose: Boolean) {
-        Toast.makeText(this, "جاري إرسال الفاتورة للطابعة...", Toast.LENGTH_SHORT).show()
-        Thread {
-            var socket: BluetoothSocket? = null
-            try {
-                val device = getFirstPairedPrinter()
-                
-                if (device != null) {
-                    socket = connectDirectToDevice(device)
-                    val out = socket.outputStream
-                    
-                    val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.BLACK
-                        textSize = 32f
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                    }
-                    
-                    val formattedText = "=== Anjum Green Pharmacy ===\n\n$payloadText\n\nشكراً لزيارتكم\n"
-                    val printWidth = 576 
-                    
-                    val staticLayout = StaticLayout.Builder.obtain(formattedText, 0, formattedText.length, textPaint, printWidth)
-                        .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                        .setLineSpacing(0f, 1.2f)
-                        .setIncludePad(false)
-                        .build()
-                        
-                    val bitmap = Bitmap.createBitmap(printWidth, staticLayout.height + 40, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bitmap)
-                    canvas.drawColor(Color.WHITE)
-                    canvas.translate(0f, 20f)
-                    staticLayout.draw(canvas)
-
-                    out.write(byteArrayOf(0x1B, 0x40)) 
-                    
-                    val bmpWidth = bitmap.width
-                    val bmpHeight = bitmap.height
-                    var offset = 0
-                    
-                    while (offset < bmpHeight) {
-                        val chunkHeight = if (bmpHeight - offset > 255) 255 else bmpHeight - offset
-                        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00))
-                        val xL = (bmpWidth / 8) % 256
-                        val xH = (bmpWidth / 8) / 256
-                        out.write(byteArrayOf(xL.toByte(), xH.toByte()))
-                        val yL = chunkHeight % 256
-                        val yH = chunkHeight / 256
-                        out.write(byteArrayOf(yL.toByte(), yH.toByte()))
-                        
-                        val rowBytes = ByteArray((bmpWidth / 8) * chunkHeight)
-                        var index = 0
-                        for (y in 0 until chunkHeight) {
-                            for (x in 0 until bmpWidth step 8) {
-                                var b = 0
-                                for (k in 0..7) {
-                                    if (x + k < bmpWidth) {
-                                        val color = bitmap.getPixel(x + k, offset + y)
-                                        val r = Color.red(color)
-                                        val g = Color.green(color)
-                                        val bColor = Color.blue(color)
-                                        val luminance = (0.299 * r + 0.587 * g + 0.114 * bColor).toInt()
-                                        if (luminance < 128) {
-                                            b = b or (1 shl (7 - k))
-                                        }
-                                    }
-                                }
-                                rowBytes[index++] = b.toByte()
-                            }
-                        }
-                        out.write(rowBytes)
-                        offset += chunkHeight
-                    }
-                    
-                    out.write(byteArrayOf(0x1B, 0x64, 0x05))
-                    out.flush()
-                    Thread.sleep(1500) 
-                    runOnUiThread { Toast.makeText(this@MainActivity, "تم طباعة الفاتورة بنجاح", Toast.LENGTH_SHORT).show() }
-                } else {
-                    runOnUiThread { Toast.makeText(this@MainActivity, "لم يتم العثور على طابعة مقترنة!", Toast.LENGTH_LONG).show() }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                runOnUiThread { Toast.makeText(this@MainActivity, "خطأ: ${e.message}", Toast.LENGTH_LONG).show() }
-            } finally {
-                try { socket?.close() } catch (ignored: Exception) {}
-                if (autoClose) {
-                    runOnUiThread { finish() }
-                }
-            }
-        }.start()
-    }
-}
+        if (!adapter.isEnabled) {
+            statusText.text = "⚠️ البلوتوث مغلق
